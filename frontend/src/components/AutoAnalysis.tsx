@@ -14,9 +14,7 @@ import {
   ChevronUp,
   ExternalLink,
   Sparkles,
-  History,
-  ToggleLeft,
-  ToggleRight,
+  Loader2,
 } from 'lucide-react';
 import { HistoricalKLineModal } from './HistoricalKLineModal';
 
@@ -122,27 +120,28 @@ const TIMEFRAME_LABELS: Record<string, string> = {
 export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
   const [data, setData] = useState<AutoAnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);  // AI分析加载状态
   const [error, setError] = useState<string | null>(null);
   const [expandedTimeframe, setExpandedTimeframe] = useState<string | null>(null);
-  
-  // 新增状态
-  const [selfOnly, setSelfOnly] = useState(false);  // 仅搜索自身历史
-  const [useLlm, setUseLlm] = useState(false);      // 使用LLM分析
   const [selectedPattern, setSelectedPattern] = useState<SimilarPatternDetail | null>(null);
 
-  const fetchAnalysis = async () => {
+  const fetchAnalysis = async (useLlm: boolean = false) => {
     if (!symbol) return;
 
-    setLoading(true);
+    if (useLlm) {
+      setAiLoading(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     try {
       const params = new URLSearchParams({
         market,
-        self_only: selfOnly.toString(),
+        self_only: 'true',
         use_llm: useLlm.toString(),
       });
-      
+
       const response = await fetch(
         `/api/v1/analysis/auto/${symbol}?${params}`
       );
@@ -157,11 +156,12 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
       setError(err instanceof Error ? err.message : 'Analysis failed');
     } finally {
       setLoading(false);
+      setAiLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAnalysis();
+    fetchAnalysis(false);
   }, [symbol, market]);
 
   const toggleExpand = (timeframe: string) => {
@@ -241,41 +241,21 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
             <h3 className="font-semibold">自动分析</h3>
           </div>
           <div className="flex items-center gap-2">
-            {/* 选项开关 */}
-            <div className="flex items-center gap-4 mr-4">
-              {/* 仅自身历史 */}
-              <button
-                onClick={() => setSelfOnly(!selfOnly)}
-                className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors ${
-                  selfOnly 
-                    ? 'bg-accent/20 text-accent' 
-                    : 'bg-border/50 text-secondary hover:text-primary'
-                }`}
-                title="开启后仅从该股票自身的历史数据中搜索相似形态"
-              >
-                <History size={14} />
-                <span>仅自身历史</span>
-                {selfOnly ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-              </button>
-              
-              {/* LLM分析 */}
-              <button
-                onClick={() => setUseLlm(!useLlm)}
-                className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors ${
-                  useLlm 
-                    ? 'bg-purple-500/20 text-purple-400' 
-                    : 'bg-border/50 text-secondary hover:text-primary'
-                }`}
-                title="开启后使用AI进行智能分析（需配置API）"
-              >
-                <Sparkles size={14} />
-                <span>AI分析</span>
-                {useLlm ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-              </button>
-            </div>
-            
             <button
-              onClick={fetchAnalysis}
+              onClick={() => fetchAnalysis(true)}
+              disabled={aiLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded transition-colors disabled:opacity-50"
+              title="AI智能分析当前K线形态"
+            >
+              {aiLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              <span className="text-sm">{aiLoading ? 'AI分析中...' : 'AI分析'}</span>
+            </button>
+            <button
+              onClick={() => fetchAnalysis(false)}
               className="p-2 hover:bg-border rounded transition-colors"
               title="刷新分析"
             >
@@ -294,12 +274,6 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
               {overallConfig.label}
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-secondary mb-1">置信度</div>
-            <div className="text-xl font-mono text-accent">
-              {(data.overall_confidence * 100).toFixed(0)}%
-            </div>
-          </div>
         </div>
 
         {/* Risk Level */}
@@ -308,12 +282,6 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
           <span className="text-sm text-secondary">风险等级：</span>
           <span className={`font-medium ${riskConfig.color}`}>{riskConfig.label}</span>
           
-          {/* 显示搜索范围 */}
-          {selfOnly && (
-            <span className="ml-auto text-xs bg-accent/20 text-accent px-2 py-0.5 rounded">
-              仅自身历史
-            </span>
-          )}
         </div>
       </div>
 
