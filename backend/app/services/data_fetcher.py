@@ -24,6 +24,12 @@ class DataFetcher:
         self._cache: Dict[str, tuple] = {}  # (data, timestamp)
         self._cache_ttl = 3600  # 1 hour
 
+    async def _run_in_executor(self, func, *args, **kwargs):
+        """Run blocking function in thread pool."""
+        import functools
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+
     async def fetch_ohlcv(
         self,
         symbol: str,
@@ -54,6 +60,24 @@ class DataFetcher:
                 return data.copy()
 
         # Fetch based on market
+        # Note: The sub-methods (_fetch_yahoo, etc) are currently marked async but contain blocking calls.
+        # We should update them to be sync and run them via _run_in_executor, 
+        # OR update them to wrap their internal blocking calls.
+        # To minimize changes, I will wrap the calls here if possible, but they are defined as async.
+        # Let's check _fetch_china definition. It was async def _fetch_china(...)
+        # But inside it calls blocking code.
+        # "async def" does NOT make code async if it doesn't await. It just returns a coroutine.
+        # If I await it, it runs synchronously.
+        
+        # Correct fix: Change _fetch_china etc to be synchronous, then await _run_in_executor(self._fetch_china, ...)
+        # BUT changing signature breaks interface if used elsewhere? 
+        # Only used internally here?
+        
+        # Let's keep them async def, but inside them, wrap the blocking part? 
+        # No, easier: call them directly. 
+        # Wait, if they are `async def`, I must `await` them.
+        # I should change the implementation of `_fetch_china` to wrap the blocking call.
+        
         if market == "us":
             df = await self._fetch_yahoo(symbol, start_date, end_date, period)
         elif market == "tw":
@@ -63,6 +87,10 @@ class DataFetcher:
         elif market == "hk":
             df = await self._fetch_hongkong(symbol, start_date, end_date, period)
         elif market == "crypto":
+            # Crypto uses CCXT which supports async but here might be sync or wrapped?
+            # Existing code used 'await self._fetch_crypto'.
+            # Let's check _fetch_crypto. 
+            # If it uses standard CCXT sync, it blocks.
             df = await self._fetch_crypto(symbol, start_date, end_date, period)
         else:
             raise ValueError(f"Unsupported market: {market}")
@@ -148,36 +176,33 @@ class DataFetcher:
             
             full_symbol = f"{prefix}{code}"
 
+            # Wrapper for blocking calls
+            def fetch_stock_sync():
+                return ak.stock_zh_a_hist(
+                    symbol=code,
+                    period="daily" if period == "daily" else "weekly",
+                    start_date=start_date.replace("-", ""),
+                    end_date=end_date.replace("-", ""),
+                    adjust="qfq",
+                )
+            
+            def fetch_index_sync():
+                 return ak.stock_zh_index_daily(symbol=full_symbol)
+
             # 1. Try fetching as standard stock
             try:
-                # akshare stock interface usually takes just the code, 
-                # but explicit handling ensures we target the right market if library supports it.
-                # stock_zh_a_hist uses 6-digit code. sh/sz is implicit or autodetected by updated lib, 
-                # but standard call is by code.
-                
-                # However, for 000001, it defaults to SZ (Ping An).
-                # If user explicitly said 'sh000001', they want the index.
-                
-                # Heuristic: If implicit prefix logic mismatches explicit prefix, favor Index or explicit handling.
-                # But stock_zh_a_hist behaves by code.
-                
                 # Let's try fetching stock first ONLY if it's not a likely index request
                 is_likely_index = (prefix == "sh" and code == "000001") or (prefix == "sz" and code == "399001")
                 
                 df = None
                 if not is_likely_index:
-                    df = ak.stock_zh_a_hist(
-                        symbol=code,
-                        period="daily" if period == "daily" else "weekly",
-                        start_date=start_date.replace("-", ""),
-                        end_date=end_date.replace("-", ""),
-                        adjust="qfq",
-                    )
+                    # Run potentially blocking AKShare call in executor
+                    df = await self._run_in_executor(fetch_stock_sync)
                 
                 # If not found or empty, OR if it's a likely index request, try Index API
                 if (df is None or df.empty) or is_likely_index:
                     # Try Index API
-                    index_df = ak.stock_zh_index_daily(symbol=full_symbol)
+                    index_df = await self._run_in_executor(fetch_index_sync)
                     
                     if index_df is not None and not index_df.empty:
                         # Index data columns usually: date, open, high, low, close, volume

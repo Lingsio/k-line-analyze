@@ -151,8 +151,19 @@ async def get_all_symbols(market: str) -> list:
         try:
             if market == 'cn':
                 # A-Share Spot: ~5000 stocks
-                df = ak.stock_zh_a_spot_em()
-                return df['代码'].tolist()
+                # stock_zh_a_spot_em might be truncated or heavy.
+                # Use stock_info_a_code_name which is static list.
+                try:
+                    df = ak.stock_info_a_code_name()
+                    symbols = df['code'].tolist()
+                    print(f"  > Successfully fetched {len(symbols)} CN symbols via stock_info_a_code_name")
+                    return symbols
+                except:
+                    # Fallback to spot if info fails
+                    df = ak.stock_zh_a_spot_em()
+                    symbols = df['代码'].tolist()
+                    print(f"  > Fetched {len(symbols)} CN symbols via spot_em")
+                    return symbols
                 
             elif market == 'us':
                 # US Stock Spot
