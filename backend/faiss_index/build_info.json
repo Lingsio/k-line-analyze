@@ -1,5 +1,5 @@
 {
-  "build_date": "2026-01-22T22:32:04.840233",
+  "build_date": "2026-01-23T14:57:12.480346",
   "markets": [
     "us",
     "tw",
@@ -8,10 +8,10 @@
     "crypto"
   ],
   "date_range": {
-    "start": "2021-01-23",
-    "end": "2026-01-22"
+    "start": "2021-01-24",
+    "end": "2026-01-23"
   },
   "window_size": 60,
   "step": 5,
-  "total_vectors": 6002
+  "total_vectors": 30572
 }

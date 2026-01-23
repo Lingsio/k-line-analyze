@@ -134,40 +134,97 @@ class DataFetcher:
         try:
             import akshare as ak
 
-            # Determine exchange based on symbol prefix
-            # 6xxxxx -> Shanghai (sh), others -> Shenzhen (sz)
-            if symbol.startswith("6"):
-                full_symbol = f"sh{symbol}"
+            import akshare as ak
+            
+            # Handle explicit prefixes (sh/sz)
+            clean_symbol = symbol.lower()
+            if clean_symbol.startswith(("sh", "sz")):
+                prefix = clean_symbol[:2]
+                code = clean_symbol[2:]
             else:
-                full_symbol = f"sz{symbol}"
+                # Default inference
+                code = symbol
+                prefix = "sh" if symbol.startswith("6") else "sz"
+            
+            full_symbol = f"{prefix}{code}"
 
-            # Fetch data
-            df = ak.stock_zh_a_hist(
-                symbol=symbol,
-                period="daily" if period == "daily" else "weekly",
-                start_date=start_date.replace("-", ""),
-                end_date=end_date.replace("-", ""),
-                adjust="qfq",  # Forward adjusted
-            )
+            # 1. Try fetching as standard stock
+            try:
+                # akshare stock interface usually takes just the code, 
+                # but explicit handling ensures we target the right market if library supports it.
+                # stock_zh_a_hist uses 6-digit code. sh/sz is implicit or autodetected by updated lib, 
+                # but standard call is by code.
+                
+                # However, for 000001, it defaults to SZ (Ping An).
+                # If user explicitly said 'sh000001', they want the index.
+                
+                # Heuristic: If implicit prefix logic mismatches explicit prefix, favor Index or explicit handling.
+                # But stock_zh_a_hist behaves by code.
+                
+                # Let's try fetching stock first ONLY if it's not a likely index request
+                is_likely_index = (prefix == "sh" and code == "000001") or (prefix == "sz" and code == "399001")
+                
+                df = None
+                if not is_likely_index:
+                    df = ak.stock_zh_a_hist(
+                        symbol=code,
+                        period="daily" if period == "daily" else "weekly",
+                        start_date=start_date.replace("-", ""),
+                        end_date=end_date.replace("-", ""),
+                        adjust="qfq",
+                    )
+                
+                # If not found or empty, OR if it's a likely index request, try Index API
+                if (df is None or df.empty) or is_likely_index:
+                    # Try Index API
+                    index_df = ak.stock_zh_index_daily(symbol=full_symbol)
+                    
+                    if index_df is not None and not index_df.empty:
+                        # Index data columns usually: date, open, high, low, close, volume
+                        df = index_df
+                        # Make sure date filtering is applied as index api might return all history
+                        df["date"] = pd.to_datetime(df["date"])
+                        mask = (df["date"] >= pd.Timestamp(start_date)) & (df["date"] <= pd.Timestamp(end_date))
+                        df = df.loc[mask]
 
-            if df.empty:
-                return None
+                if df is None or df.empty:
+                    return None
 
-            # Rename columns to standard format
-            df = df.rename(
-                columns={
-                    "日期": "date",
-                    "开盘": "open",
-                    "收盘": "close",
-                    "最高": "high",
-                    "最低": "low",
-                    "成交量": "volume",
+                # Rename columns
+                # AKShare index columns might be consistent with stock, but let's be safe
+                rename_map = {
+                    "日期": "date", "Date": "date",
+                    "开盘": "open", "Open": "open",
+                    "收盘": "close", "Close": "close",
+                    "最高": "high", "High": "high",
+                    "最低": "low", "Low": "low",
+                    "成交量": "volume", "Volume": "volume",
+                    "成交额": "amount", "Amount": "amount"
                 }
-            )
-            df["date"] = pd.to_datetime(df["date"])
-            df = df.set_index("date")
+                
+                # Check which columns exist
+                current_cols = df.columns.tolist()
+                new_cols = {}
+                for c in current_cols:
+                    if c in rename_map:
+                        new_cols[c] = rename_map[c]
+                
+                df = df.rename(columns=new_cols)
+                
+                if "date" in df.columns:
+                    df["date"] = pd.to_datetime(df["date"])
+                    df = df.set_index("date")
+                
+                return df
 
-            return df
+            except KeyError:
+                # If symbol not found in stock API, pass to try logic below or return None
+                 pass
+            except Exception as inner_e:
+                print(f"AKShare internal error: {inner_e}")
+                pass
+            
+            return None
 
         except Exception as e:
             print(f"Error fetching China data for {symbol}: {e}")
