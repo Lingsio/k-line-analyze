@@ -305,60 +305,22 @@ class AutoAnalyzer:
                      if hasattr(query_vector, 'flatten'):
                          query_vector = query_vector.flatten()
                      
-                     # 如果仅搜索自身历史，过滤结果
                      if self_only:
-                         results = self.search_engine.search(query_vector, top_k=top_k * 5, markets=search_scope)
-                         # 过滤只保留同一股票的结果
-                         results = [r for r in results if r.get("symbol") == symbol][:top_k]
-                         return results
-                     else:
-                         return self.search_engine.search(query_vector, top_k=top_k, markets=search_scope)
-                 except Exception as e:
-                     print(f"Feature extraction failed: {e}")
-                     # Fallback to mock data if extraction fails
-                     pass
+                        results = self.search_engine.search(query_vector, top_k=top_k * 5, markets=search_scope)
+                        # 过滤只保留同一股票的结果
+                        results = [r for r in results if r.get("symbol") == symbol][:top_k]
+                        return results
+                    else:
+                        return self.search_engine.search(query_vector, top_k=top_k, markets=search_scope)
+                except Exception as e:
+                    print(f"Feature extraction or search failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return []
             
-            # 如果没有加载 feature_extractor，回退到模拟数据
-            pass
-
-        # 生成模拟数据用于演示
-        mock_symbols = {
-            "us": ["NVDA", "AMD", "TSLA", "MSFT", "GOOGL", "META", "AMZN", "NFLX"],
-            "tw": ["2454", "2317", "2308", "2412", "2881"],
-            "cn": ["600519", "000858", "601318"],
-            "hk": ["0700", "9988", "0005"],
-            "crypto": ["ETH", "BNB", "SOL"],
-        }
-        
-        # 如果self_only，仅使用当前股票
-        if self_only:
-            mock_symbols = {market: [symbol]}
-
-        patterns = []
-        years = [2023, 2022, 2021, 2020, 2019, 2018]
-
-        for i in range(top_k):
-            scope_market = market if self_only else random.choice(search_scope)
-            symbols = mock_symbols.get(scope_market, [symbol] if self_only else mock_symbols["us"])
-
-            # 生成合理的收益分布
-            base_return = random.gauss(0.02, 0.05)
-
-            patterns.append({
-                "symbol": random.choice(symbols),
-                "market": scope_market,
-                "start_date": f"{random.choice(years)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}",
-                "end_date": f"{random.choice(years)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}",
-                "similarity_score": round(0.95 - i * 0.03 + random.uniform(-0.02, 0.02), 3),
-                "subsequent_returns": {
-                    "t+1": round(base_return * 0.2 + random.gauss(0, 0.01), 4),
-                    "t+5": round(base_return + random.gauss(0, 0.02), 4),
-                    "t+10": round(base_return * 1.5 + random.gauss(0, 0.03), 4),
-                    "t+20": round(base_return * 2 + random.gauss(0, 0.05), 4),
-                },
-            })
-
-        return patterns
+            # 如果没有加载 feature_extractor
+            print("Feature extractor not initialized")
+            return []
 
     def _calculate_stats(self, patterns: List[Dict[str, Any]]) -> Dict[str, float]:
         """计算统计指标"""
@@ -613,27 +575,77 @@ class AutoAnalyzer:
                     "confidence": f"{a.confidence*100:.0f}%",
                 })
             
-            prompt = f"""你是一位专业的量化分析师和K线形态分析专家。
+            # 准备历史形态详细信息
+            historical_details = []
+            for a in timeframe_analyses:
+                if a.similar_patterns:
+                    # 只取前3个最相似的形态作为示例
+                    top_patterns = a.similar_patterns[:3]
+                    pattern_info = f"\n### {a.timeframe} 时间周期相似形态:\n"
+                    for i, p in enumerate(top_patterns, 1):
+                        pattern_info += f"{i}. {p['symbol']} ({p['market']}), 相似度: {p['similarity_score']:.1%}\n"
+                        pattern_info += f"   后续收益: T+5: {p['subsequent_returns']['t+5']*100:+.2f}%, T+20: {p['subsequent_returns']['t+20']*100:+.2f}%\n"
+                    historical_details.append(pattern_info)
+            
+            prompt = f"""你是一位资深的技术分析专家和量化交易员，拥有20年K线形态分析经验。
 
-请基于以下信息为股票 {symbol} ({market}市场) 提供专业的投资分析：
+请为股票 **{symbol}** ({market}市场) 提供一份全面的技术分析报告。
 
-## 量化分析数据
+## 📊 当前量化分析数据
 
-**综合信号**: {overall_signal}
-**综合置信度**: {overall_confidence*100:.1f}%
+**综合信号**: {overall_signal}（置信度: {overall_confidence*100:.1f}%）
 
-**各时间维度分析**:
+**多时间维度分析**:
 {self._format_analysis_for_llm(analysis_summary)}
 
-## 分析要求
+## 📖 历史相似形态回顾
 
-1. 首先观察K线图，识别当前的技术形态（如头肩、双底、三角形、旗形等）
-2. 结合图形形态和量化数据，评估当前走势
-3. 分析多周期信号的一致性
-4. 指出关键支撑位和阻力位
-5. 给出具体的操作建议（方向、入场时机、仓位、止损位）
+基于我们的量化模型，找到了以下历史相似形态：
+{''.join(historical_details)}
 
-请用简洁专业的语言，控制在250字以内。"""
+## 📝 分析任务
+
+请基于提供的K线图和上述量化数据，撰写一份结构化的技术分析报告，包含以下部分：
+
+### 1. **当前技术形态识别** (150-200字)
+- 仔细观察K线图，识别当前形态特征（如：头肩顶/底、双重顶/底、三角形、旗形、楔形等）
+- 描述价格趋势（上升/下降/横盘整理）
+- 识别关键的K线组合信号（如：吞没、锤子线、十字星等）
+- 标注当前所处的形态阶段
+
+### 2. **多周期趋势分析** (100-150字)
+- 综合日K、周K、月K的信号一致性
+- 分析趋势的强度和可持续性
+- 指出不同周期之间的共振或分歧
+- 评估当前趋势的健康程度
+
+### 3. **历史形态对比与启示** (200-250字)
+- 分析历史相似形态的后续表现统计规律
+- 指出当前形态与历史案例的相似点和差异点
+- 从历史数据中提取可借鉴的交易经验
+- 评估历史胜率和期望收益的参考价值
+
+### 4. **关键价位与技术指标** (100-150字)
+- 标注重要的支撑位和阻力位（基于图表）
+- 识别成交量配合情况
+- 指出可能的突破方向和确认信号
+
+### 5. **操作建议与风险提示** (150-200字)
+- 给出明确的交易方向建议（看多/看空/观望）
+- 建议入场时机和价位
+- 推荐仓位管理策略（轻仓试探/正常仓位/重仓）
+- 设定止损位和止盈目标
+- 列出关键风险点和需要关注的市场因素
+
+## 📋 输出要求
+
+1. 使用专业但易懂的语言
+2. 总字数控制在700-900字之间
+3. 结论要具体，避免模糊表述
+4. 如果图表信息不足，基于量化数据给出最佳判断
+5. 用emoji适当标记段落，增强可读性
+
+请开始撰写完整的技术分析报告："""
 
             # 构建 Gemini API 请求
             api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.LLM_MODEL}:generateContent?key={settings.LLM_API_KEY}"
@@ -659,7 +671,7 @@ class AutoAnalyzer:
                 }],
                 "generationConfig": {
                     "temperature": 0.7,
-                    "maxOutputTokens": 800,
+                    "maxOutputTokens": 2048,
                 }
             }
 
@@ -854,6 +866,8 @@ async def quick_analyze(symbol: str, market: str = "us", self_only: bool = False
                 "timeframe": a.timeframe,
                 "window_days": a.window_days,
                 "period": a.start_date + " ~ " + a.end_date,
+                "start_date": a.start_date,
+                "end_date": a.end_date,
                 "signal": a.signal,
                 "win_rate_5d": a.win_rate_5,
                 "win_rate_20d": a.win_rate_20,

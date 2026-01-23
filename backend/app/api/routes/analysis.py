@@ -153,6 +153,8 @@ class TimeframeAnalysisResult(BaseModel):
     timeframe: str
     window_days: int
     period: str
+    start_date: str
+    end_date: str
     signal: str
     win_rate_5d: float
     win_rate_20d: float
@@ -244,6 +246,7 @@ class HistoricalKLineRequest(BaseModel):
     start_date: str
     end_date: str
     extend_days: int = 30  # 向后延伸的天数，用于显示后续走势
+    lookback_days: int = 30  # 向前延伸的天数，用于显示历史背景
 
 
 class KLineData(BaseModel):
@@ -283,7 +286,7 @@ async def get_historical_kline(request: HistoricalKLineRequest):
         end = datetime.strptime(request.end_date, "%Y-%m-%d")
         
         # 向前多取一些数据作为背景
-        fetch_start = start - timedelta(days=30)
+        fetch_start = start - timedelta(days=request.lookback_days)
         # 向后延伸以显示后续走势
         fetch_end = end + timedelta(days=request.extend_days)
         

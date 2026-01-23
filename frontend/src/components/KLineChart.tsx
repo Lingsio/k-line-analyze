@@ -17,6 +17,8 @@ interface KLineChartProps {
   selection?: ChartSelection | null;
   height?: number;
   showVolume?: boolean;
+  visibleBarCount?: number;
+  highlightDateRange?: { startDate: string; endDate: string } | null;
 }
 
 export function KLineChart({
@@ -25,6 +27,8 @@ export function KLineChart({
   selection,
   height = 400,
   showVolume = true,
+  visibleBarCount,
+  highlightDateRange,
 }: KLineChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -137,18 +141,86 @@ export function KLineChart({
     };
   }, [height, showVolume]);
 
-  // Update data
+  // Update data and markers
   useEffect(() => {
     if (candleSeriesRef.current && candleData.length > 0) {
       candleSeriesRef.current.setData(candleData);
+
+      // Variables to store pattern range indices for zoom
+      let patternStartIdx = -1;
+      let patternEndIdx = -1;
+
+      // Add markers for highlighted range (start/end arrows)
+      if (highlightDateRange) {
+        // Find indices using >= and <= matching for robustness
+        let startIdx = data.findIndex(d => d.date >= highlightDateRange.startDate);
+        let endIdx = -1;
+        for (let i = data.length - 1; i >= 0; i--) {
+          if (data[i].date <= highlightDateRange.endDate) {
+            endIdx = i;
+            break;
+          }
+        }
+
+        // Store for zoom logic
+        patternStartIdx = startIdx;
+        patternEndIdx = endIdx;
+
+        const markers: any[] = [];
+
+        if (startIdx >= 0 && startIdx < data.length) {
+          markers.push({
+            time: data[startIdx].date as Time,
+            position: 'belowBar',
+            color: '#f59e0b',
+            shape: 'arrowUp',
+            text: '起点',
+          });
+        }
+
+        if (endIdx >= 0) {
+          markers.push({
+            time: data[endIdx].date as Time,
+            position: 'aboveBar',
+            color: '#ef4444',
+            shape: 'arrowDown',
+            text: '终点(现在)',
+          });
+        }
+
+        candleSeriesRef.current.setMarkers(markers);
+      } else {
+        candleSeriesRef.current.setMarkers([]);
+      }
+
+      if (volumeSeriesRef.current && volumeData.length > 0) {
+        volumeSeriesRef.current.setData(volumeData);
+      }
+
+      if (chartRef.current && candleData.length > 0) {
+        const timeScale = chartRef.current.timeScale();
+
+        // If we have a highlight range, set view based on pattern
+        if (highlightDateRange && patternStartIdx >= 0 && patternEndIdx >= 0) {
+          const patternLength = patternEndIdx - patternStartIdx;
+          // Add padding (approx 15% on each side to match left chart's ~30% total context)
+          const padding = Math.max(5, Math.ceil(patternLength * 0.15));
+
+          timeScale.setVisibleLogicalRange({
+            from: patternStartIdx - padding,
+            to: patternEndIdx + padding,
+          });
+        } else if (visibleBarCount && visibleBarCount > 0) {
+          timeScale.setVisibleLogicalRange({
+            from: candleData.length - visibleBarCount,
+            to: candleData.length,
+          });
+        } else {
+          timeScale.fitContent();
+        }
+      }
     }
-    if (volumeSeriesRef.current && volumeData.length > 0) {
-      volumeSeriesRef.current.setData(volumeData);
-    }
-    if (chartRef.current && candleData.length > 0) {
-      chartRef.current.timeScale().fitContent();
-    }
-  }, [data]);
+  }, [data, visibleBarCount, highlightDateRange]);
 
   // Handle selection
   const handleMouseDown = useCallback(
@@ -237,6 +309,62 @@ export function KLineChart({
     );
   };
 
+  const renderHighlightOverlay = () => {
+    if (!highlightDateRange || !chartRef.current || !containerRef.current || data.length === 0) return null;
+
+    const timeScale = chartRef.current.timeScale();
+    const startX = timeScale.timeToCoordinate(highlightDateRange.startDate as Time);
+    const endX = timeScale.timeToCoordinate(highlightDateRange.endDate as Time);
+
+    // If coordinates are null, it might be off-screen or not loaded, handle gracefully?
+    // We try to find closest indices if exact dates not found
+    // But chart format conversion might have handled exact dates.
+
+    if (startX === null && endX === null) return null;
+
+    // Simple fallback if one bound is visible
+    // Wait, timeToCoordinate returns null if the point is arguably valid? No, it returns coordinate.
+    // If null, effectively don't draw.
+    // Actually we need indices to be robust.
+
+    const startIndex = data.findIndex(d => d.date >= highlightDateRange.startDate);
+    const endIndex = data.findIndex(d => d.date > highlightDateRange.endDate) - 1;
+
+    // Re-check coordinates based on robust indices
+    const robustStartIndex = startIndex >= 0 ? startIndex : 0;
+    const robustEndIndex = endIndex >= 0 ? endIndex : data.length - 1;
+
+    // Actually timeToCoordinate is best if we trust the dates exist.
+    // Let's stick to timeToCoordinate but handle nulls by clamping to chart edges if needed?
+    // For now simple optional logic.
+
+    const x1 = startX ?? timeScale.timeToCoordinate(data[robustStartIndex].date as Time);
+    const x2 = endX ?? timeScale.timeToCoordinate(data[robustEndIndex].date as Time);
+
+    if (x1 === null || x2 === null) return null;
+
+    const left = Math.min(x1, x2);
+    const width = Math.abs(x2 - x1);
+
+    return (
+      <div
+        className="highlight-overlay"
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: `${left}px`,
+          width: `${width}px`,
+          backgroundColor: 'rgba(64, 158, 255, 0.1)', // Blue-ish tint
+          borderLeft: '1px dashed rgba(64, 158, 255, 0.5)',
+          borderRight: '1px dashed rgba(64, 158, 255, 0.5)',
+          pointerEvents: 'none',
+          zIndex: 5,
+        }}
+      />
+    );
+  };
+
   return (
     <div className="relative">
       <div
@@ -245,6 +373,7 @@ export function KLineChart({
         style={{ height: `${height}px` }}
       />
       {renderSelectionOverlay()}
+      {renderHighlightOverlay()}
       {selection && (
         <div className="absolute top-2 right-2 bg-surface border border-border rounded px-3 py-1 text-sm">
           <span className="text-secondary">Selected: </span>

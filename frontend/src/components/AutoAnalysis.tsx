@@ -16,7 +16,6 @@ import {
   Sparkles,
   Loader2,
 } from 'lucide-react';
-import { HistoricalKLineModal } from './HistoricalKLineModal';
 
 interface SimilarPatternDetail {
   symbol: string;
@@ -35,6 +34,8 @@ interface SimilarPatternDetail {
 interface TimeframeAnalysis {
   timeframe: string;
   window_days: number;
+  start_date: string;
+  end_date: string;
   period: string;
   signal: string;
   win_rate_5d: number;
@@ -62,6 +63,7 @@ interface AutoAnalysisData {
 interface AutoAnalysisProps {
   symbol: string;
   market: string;
+  onPatternSelect?: (pattern: SimilarPatternDetail) => void;
 }
 
 const SIGNAL_CONFIG = {
@@ -117,13 +119,12 @@ const TIMEFRAME_LABELS: Record<string, string> = {
   monthly_12: '月K (12月)',
 };
 
-export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
+export function AutoAnalysis({ symbol, market, onPatternSelect }: AutoAnalysisProps) {
   const [data, setData] = useState<AutoAnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);  // AI分析加载状态
+  const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedTimeframe, setExpandedTimeframe] = useState<string | null>(null);
-  const [selectedPattern, setSelectedPattern] = useState<SimilarPatternDetail | null>(null);
 
   const fetchAnalysis = async (useLlm: boolean = false) => {
     if (!symbol) return;
@@ -185,8 +186,16 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
     return `${sign}${(value * 100).toFixed(2)}%`;
   };
 
-  const handlePatternClick = (pattern: SimilarPatternDetail) => {
-    setSelectedPattern(pattern);
+  const handlePatternClick = (pattern: SimilarPatternDetail, tf: TimeframeAnalysis) => {
+    if (onPatternSelect) {
+      // Merge current stock's pattern interval with historical pattern
+      const enrichedPattern = {
+        ...pattern,
+        current_start_date: tf.start_date,
+        current_end_date: tf.end_date,
+      };
+      onPatternSelect(enrichedPattern);
+    }
   };
 
   if (loading) {
@@ -207,7 +216,7 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
           <AlertTriangle size={24} className="mx-auto mb-2" />
           <p>{error}</p>
           <button
-            onClick={fetchAnalysis}
+            onClick={() => fetchAnalysis()}
             className="mt-3 px-4 py-2 bg-accent text-background rounded hover:bg-accent/90"
           >
             重试
@@ -232,37 +241,36 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
   const RiskIcon = riskConfig.icon;
 
   return (
-    <>
-      <div className="bg-surface border border-border rounded-lg overflow-hidden">
-        {/* Header */}
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap size={20} className="text-accent" />
-            <h3 className="font-semibold">自动分析</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => fetchAnalysis(true)}
-              disabled={aiLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded transition-colors disabled:opacity-50"
-              title="AI智能分析当前K线形态"
-            >
-              {aiLoading ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Sparkles size={14} />
-              )}
-              <span className="text-sm">{aiLoading ? 'AI分析中...' : 'AI分析'}</span>
-            </button>
-            <button
-              onClick={() => fetchAnalysis(false)}
-              className="p-2 hover:bg-border rounded transition-colors"
-              title="刷新分析"
-            >
-              <RefreshCw size={16} className="text-secondary" />
-            </button>
-          </div>
+    <div className="bg-surface border border-border rounded-lg overflow-hidden">
+      {/* Header */}
+      <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Zap size={20} className="text-accent" />
+          <h3 className="font-semibold">自动分析</h3>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => fetchAnalysis(true)}
+            disabled={aiLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded transition-colors disabled:opacity-50"
+            title="AI智能分析当前K线形态"
+          >
+            {aiLoading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            <span className="text-sm">{aiLoading ? 'AI分析中...' : 'AI分析'}</span>
+          </button>
+          <button
+            onClick={() => fetchAnalysis(false)}
+            className="p-2 hover:bg-border rounded transition-colors"
+            title="刷新分析"
+          >
+            <RefreshCw size={16} className="text-secondary" />
+          </button>
+        </div>
+      </div>
 
       {/* Overall Signal Card */}
       <div className={`m-4 p-4 rounded-lg border ${overallConfig.bg} ${overallConfig.border}`}>
@@ -281,7 +289,6 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
           <RiskIcon size={16} className={riskConfig.color} />
           <span className="text-sm text-secondary">风险等级：</span>
           <span className={`font-medium ${riskConfig.color}`}>{riskConfig.label}</span>
-          
         </div>
       </div>
 
@@ -375,14 +382,14 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
                   {isExpanded && (
                     <div className="border-t border-border bg-surface/50 p-3">
                       <div className="text-xs font-semibold text-secondary mb-2 uppercase tracking-wider">
-                        相似历史形态 <span className="text-accent">(点击查看图表)</span>
+                        相似历史形态 <span className="text-accent">(点击查看对比图表)</span>
                       </div>
                       <div className="space-y-2">
                         {tf.similar_patterns && tf.similar_patterns.map((pattern, idx) => (
                           <div
                             key={idx}
                             className="grid grid-cols-4 gap-2 text-xs p-2 bg-background rounded border border-border/50 hover:bg-accent/10 hover:border-accent/30 transition-colors items-center cursor-pointer"
-                            onClick={() => handlePatternClick(pattern)}
+                            onClick={() => handlePatternClick(pattern, tf)}
                           >
                             <div className="col-span-1 font-medium flex items-center gap-1">
                               <ExternalLink size={10} className="text-accent" />
@@ -406,7 +413,7 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
                           </div>
                         ))}
                         {(!tf.similar_patterns || tf.similar_patterns.length === 0) && (
-                           <div className="text-center text-xs text-secondary py-2">暂无详细数据</div>
+                          <div className="text-center text-xs text-secondary py-2">暂无详细数据</div>
                         )}
                       </div>
                     </div>
@@ -420,18 +427,9 @@ export function AutoAnalysis({ symbol, market }: AutoAnalysisProps) {
 
       {/* Footer */}
       <div className="px-4 py-3 bg-background/50 text-xs text-secondary border-t border-border">
-        分析时间：{data.analysis_date} | 点击相似形态可查看历史K线图
+        分析时间：{data.analysis_date} | 点击相似形态可查看对比图表
       </div>
     </div>
-
-    {/* Historical K-Line Modal */}
-    {selectedPattern && (
-      <HistoricalKLineModal
-        pattern={selectedPattern}
-        onClose={() => setSelectedPattern(null)}
-      />
-    )}
-    </>
   );
 }
 
