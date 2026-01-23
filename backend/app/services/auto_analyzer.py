@@ -299,13 +299,13 @@ class AutoAnalyzer:
             # 使用真实索引搜索
             # 使用 FeatureExtractor 直接从 DataFrame 提取特征
             if hasattr(self, 'feature_extractor'):
-                 try:
-                     query_vector = self.feature_extractor.extract_from_dataframe(df)
-                     # 确保 query_vector 是 1D array
-                     if hasattr(query_vector, 'flatten'):
-                         query_vector = query_vector.flatten()
-                     
-                     if self_only:
+                try:
+                    query_vector = self.feature_extractor.extract_from_dataframe(df)
+                    # 确保 query_vector 是 1D array
+                    if hasattr(query_vector, 'flatten'):
+                        query_vector = query_vector.flatten()
+                    
+                    if self_only:
                         results = self.search_engine.search(query_vector, top_k=top_k * 5, markets=search_scope)
                         # 过滤只保留同一股票的结果
                         results = [r for r in results if r.get("symbol") == symbol][:top_k]

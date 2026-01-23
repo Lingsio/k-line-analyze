@@ -148,7 +148,7 @@ class SimilaritySearchEngine:
         # Search for more candidates if filtering by market
         search_k = top_k * 5 if markets else top_k
 
-        if self._faiss_available:
+        if self._faiss_available and self.index is not None:
             if hasattr(self.index, "nprobe"):
                 self.index.nprobe = min(128, self.nlist)
 
