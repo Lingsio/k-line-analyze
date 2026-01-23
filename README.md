@@ -1,150 +1,122 @@
 # K-Line Pattern Finder
+# AI-Driven Financial Time Series Similarity Search / AI 驱动的金融形态相似度搜索引擎
 
-基于深度学习的K线形态相似度检索引擎，支持用户通过选取当前股票K线片段，在历史数据中查找相似走势，并提供后续走势预测分析。
+<div align="center">
 
-## 功能特点
+[English](#english-version) | [中文版本](#中文版本)
 
-- **多市场支持**: 美股、台股、A股、港股、加密货币
-- **智能形态匹配**: CNN + DTW 混合算法
-- **向量检索**: FAISS 高效相似度搜索
-- **统计分析**: 胜率、平均收益率、置信度评估
-- **专业 UI**: TradingView 风格深色主题
+</div>
 
-## 技术栈
+---
 
-### 后端
-- Python 3.11+
-- FastAPI
-- PyTorch (ResNet18 + Triplet Loss)
-- FAISS
-- yfinance, AKShare, CCXT
+## English Version
 
-### 前端
-- React 18 + TypeScript
-- TradingView Lightweight Charts
-- Tailwind CSS
-- Recharts
 
-## 快速开始
+### Abstract
 
-### 1. 安装依赖
+The **K-Line Pattern Finder** is a sophisticated financial analysis system designed to identify historical recurrence of market behaviors through computer vision and vector similarity search. By encoding candlestick chart patterns into high-dimensional vector embeddings using Convolutional Neural Networks (CNN), the system enables real-time retrieval of historically similar price structures across global financial markets. Integrated with Large Language Models (LLM), it provides automated technical analysis and actionable market insights.
 
+### System Architecture
+
+The system operates on a decoupled client-server architecture, comprising three primary subsystems:
+
+1.  **Vector Search Engine (Core)**: Handles embedding storage and similarity retrieval using FAISS.
+2.  **Analytical Backend (API)**: Python/FastAPI service orchestrating data flow, AI analysis, and market data fetching.
+3.  **Visualization Frontend (UI)**: React-based interface for interactive charting and pattern comparison.
+
+#### Feature Extraction & Vector Indexing
+*   **Data Acquisition**: Aggregates historical OHLCV data from US, CN, HK, TW, and Crypto markets.
+*   **Feature Encoding**: Pre-trained CNN model maps 60-day price patterns into 256-dimensional vectors.
+*   **Indexing**: Utilizes FAISS IVF-PQ (Inverted File with Product Quantization) for scalable, sub-millisecond retrieval.
+
+### Installation and Setup
+
+#### Prerequisites
+*   Python 3.8+
+*   Node.js 16+
+*   CUDA-compatible GPU (Recommended)
+
+#### Backend Configuration
 ```bash
-# 后端
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# 前端
-cd frontend
-npm install
+# Configure .env with LLM_API_KEY
+python -m uvicorn app.main:app --reload
 ```
 
-### 2. 启动服务
-
+#### Frontend Configuration
 ```bash
-# 后端 (终端 1)
-cd backend
-uvicorn app.main:app --reload --port 8000
-
-# 前端 (终端 2)
 cd frontend
+npm install
 npm run dev
 ```
 
-### 3. 访问应用
+### Index Building
 
-打开浏览器访问 http://localhost:5173
-
-## Docker 部署
+To enable similarity search, a comprehensive vector index must be built:
 
 ```bash
-docker-compose up -d
+python scripts/build_index.py
+```
+This script automates the fetching of full-market symbol lists and constructs the vector index with GPU acceleration.
+
+### License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+## 中文版本
+
+
+### 摘要
+
+**K-Line Pattern Finder** 是一个先进的金融分析系统，旨在通过计算机视觉和向量相似度搜索技术，识别市场行为的历史重现性。该系统利用卷积神经网络（CNN）将K线图表形态编码为高维向量嵌入，从而能够在全球金融市场中实时检索历史上相似的价格结构。结合大语言模型（LLM），系统能够提供自动化的技术分析和可执行的市场洞察。
+
+### 系统架构
+
+本系统采用解耦的客户端-服务器架构，由三个主要子系统组成：
+
+1.  **向量搜索引擎（核心）**：使用 FAISS 处理向量存储和相似度检索。
+2.  **分析后端（API）**：基于 Python/FastAPI，负责数据流编排、AI 分析和市场数据获取。
+3.  **可视化前端（UI）**：基于 React 的交互式界面，用于图表展示和形态对比。
+
+#### 特征提取与向量索引
+*   **数据采集**：聚合美股、A股、港股、台股及加密货币市场的历史 OHLCV 数据。
+*   **特征编码**：预训练 CNN 模型将 60 天的价格形态映射为 256 维向量。
+*   **索引构建**：采用 FAISS IVF-PQ（带乘积量化的倒排索引）结构，实现可扩展的亚毫秒级检索。
+
+### 安装与配置
+
+#### 前置条件
+*   Python 3.8+
+*   Node.js 16+
+*   CUDA 兼容显卡（推荐）
+
+#### 后端配置
+```bash
+cd backend
+pip install -r requirements.txt
+# 在 .env 文件中配置 LLM_API_KEY
+python -m uvicorn app.main:app --reload
 ```
 
-## 使用流程
-
-1. **选择市场和股票**: 在顶部选择市场类型，输入股票代码
-2. **选取 K 线区域**: 在图表上点击拖动选择一段 K 线形态
-3. **设置搜索参数**: 选择搜索范围和返回结果数量
-4. **查看相似结果**: 系统返回历史上最相似的 K 线片段
-5. **分析预测**: 查看相似形态的后续走势统计
-
-## 项目结构
-
-```
-k-line-analyze/
-├── backend/                 # Python 后端
-│   ├── app/
-│   │   ├── api/routes/     # API 路由
-│   │   ├── services/       # 业务逻辑
-│   │   ├── models/         # 深度学习模型
-│   │   └── utils/          # 工具函数
-│   ├── trained_models/     # 训练好的模型
-│   └── faiss_index/        # FAISS 索引
-├── frontend/               # React 前端
-│   ├── src/
-│   │   ├── components/     # UI 组件
-│   │   ├── services/       # API 服务
-│   │   ├── hooks/          # React Hooks
-│   │   └── types/          # TypeScript 类型
-├── scripts/                # 脚本工具
-│   ├── train_model.py      # 模型训练
-│   ├── build_index.py      # 索引构建
-│   └── download_data.py    # 数据下载
-└── data/                   # 数据目录
+#### 前端配置
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-## API 文档
+### 索引构建
 
-启动后端后访问 http://localhost:8000/docs 查看 Swagger API 文档。
-
-### 主要接口
-
-- `GET /api/v1/stock/{symbol}/kline` - 获取 K 线数据
-- `POST /api/v1/search/similar` - 搜索相似形态
-- `GET /api/v1/analysis/statistics` - 获取全局统计
-
-## 构建索引
-
-首次使用需要构建历史数据索引：
+为了启用相似度搜索，需要构建完整的数据索引：
 
 ```bash
-# 1. 下载历史数据
-python scripts/download_data.py --markets us tw
-
-# 2. 训练模型 (可选，已提供预训练)
-python scripts/train_model.py
-
-# 3. 构建索引
-python scripts/build_index.py --markets us tw --window-size 60
+python scripts/build_index.py
 ```
+该脚本会自动抓取全市场的股票代码列表，并利用 GPU 加速构建向量索引。
 
-## 配置说明
+### 许可
 
-### 后端配置 (backend/.env)
-
-```env
-DEBUG=true
-CORS_ORIGINS=["http://localhost:5173"]
-EMBEDDING_DIM=256
-IMAGE_SIZE=128
-```
-
-### 前端配置 (frontend/.env)
-
-```env
-VITE_API_URL=http://localhost:8000
-```
-
-## 注意事项
-
-1. **数据源限制**: 部分数据源有请求频率限制
-2. **存储需求**: 完整索引需要 ~100GB 存储空间
-3. **GPU 加速**: 训练时建议使用 CUDA GPU
-4. **风险提示**: 历史表现不代表未来收益
-
-## 许可证
-
-MIT License
+本项目采用 [MIT License](LICENSE) 许可证。
