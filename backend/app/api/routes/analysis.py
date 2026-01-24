@@ -197,6 +197,10 @@ async def auto_analyze_stock(
         False,
         description="Use LLM for enhanced analysis"
     ),
+    force_refresh: bool = Query(
+        False,
+        description="Force refresh LLM analysis (ignore cache)"
+    ),
 ):
     """
     自动分析股票近期走势
@@ -231,6 +235,7 @@ async def auto_analyze_stock(
             market=market,
             self_only=self_only,
             use_llm=use_llm,
+            force_refresh=force_refresh,
         )
 
         return AutoAnalysisResponse(**result)

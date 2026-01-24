@@ -30,10 +30,15 @@ class Settings(BaseSettings):
     # Data Fetcher Settings
     CACHE_EXPIRY_HOURS: int = 24
 
-    # LLM API Settings (Gemini 多模态)
-    LLM_API_KEY: str = ""  # Gemini API Key
-    LLM_MODEL: str = "gemini-2.0-flash"  # gemini-2.0-flash 或 gemini-1.5-pro
-    LLM_ENABLED: bool = False  # 设为 True 启用 LLM 分析
+    # LLM API Settings (Alibaba Qwen / Google Gemini)
+    LLM_PROVIDER: str = "gemini" # gemini or qwen
+    LLM_API_KEY: str = ""  
+    LLM_MODEL: str = "gemini-2.0-flash" 
+    LLM_ENABLED: bool = False
+
+    # LLM Cache Settings
+    LLM_CACHE_DIR: Path = BASE_DIR.parent / "data" / "llm_cache"
+    LLM_CACHE_EXPIRY_DAYS: int = 7
 
     class Config:
         env_file = ".env"

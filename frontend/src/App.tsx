@@ -1,15 +1,10 @@
 import { useState, useCallback } from 'react';
-import { BarChart3, RefreshCw, Info, Zap, X, ArrowLeft, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { RefreshCw, X, ArrowLeft, TrendingUp, TrendingDown, Loader2, BarChart3 } from 'lucide-react';
 import { KLineChart } from './components/KLineChart';
-import { SearchPanel } from './components/SearchPanel';
-import { SimilarResults } from './components/SimilarResults';
-import { AnalysisPanel } from './components/AnalysisPanel';
 import { SymbolSearch } from './components/SymbolSearch';
 import { AutoAnalysis } from './components/AutoAnalysis';
-import { useKLineData, useSearch } from './hooks/useKLineData';
-import type { ChartSelection, SearchRequest, SearchResponse, SimilarPattern } from './types';
-
-type TabType = 'search' | 'auto';
+import { useKLineData } from './hooks/useKLineData';
+import type { ChartSelection } from './types';
 
 // Pattern from AutoAnalysis has different type structure
 interface AutoPattern {
@@ -33,9 +28,7 @@ function App() {
   const [symbol, setSymbol] = useState('AAPL');
   const [market, setMarket] = useState('us');
   const [selection, setSelection] = useState<ChartSelection | null>(null);
-  const [selectedPattern, setSelectedPattern] = useState<SimilarPattern | null>(null);
   const [autoSelectedPattern, setAutoSelectedPattern] = useState<AutoPattern | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('auto');
   const [comparisonMode, setComparisonMode] = useState(false);
 
   // Historical data for comparison view
@@ -49,13 +42,6 @@ function App() {
     market,
     days: 365,
   });
-
-  const {
-    search,
-    loading: searchLoading,
-    results,
-    clearResults,
-  } = useSearch();
 
   // Fetch historical data for comparison
   const fetchHistoricalData = useCallback(async (pattern: AutoPattern) => {
@@ -75,7 +61,6 @@ function App() {
       });
       if (response.ok) {
         const data = await response.json();
-        // Convert API format (time) to chart format (date)
         const convertedData = (data.kline_data || []).map((item: any) => ({
           date: item.time,
           open: item.open,
@@ -98,37 +83,23 @@ function App() {
   const handleSymbolChange = useCallback((newSymbol: string) => {
     setSymbol(newSymbol);
     setSelection(null);
-    clearResults();
     setComparisonMode(false);
-  }, [clearResults]);
+  }, []);
 
   const handleMarketChange = useCallback((newMarket: string) => {
     setMarket(newMarket);
     setSelection(null);
-    clearResults();
     setComparisonMode(false);
-  }, [clearResults]);
-
-  const handleSearch = useCallback(async (request: SearchRequest) => {
-    await search(request);
-  }, [search]);
-
-  const handlePatternSelect = useCallback((pattern: SimilarPattern) => {
-    setSelectedPattern(pattern);
-    setAutoSelectedPattern(null);
-    setComparisonMode(true);
   }, []);
 
   const handleAutoPatternSelect = useCallback((pattern: AutoPattern) => {
     setAutoSelectedPattern(pattern);
-    setSelectedPattern(null);
     setComparisonMode(true);
     fetchHistoricalData(pattern);
   }, [fetchHistoricalData]);
 
   const handleCloseComparison = useCallback(() => {
     setComparisonMode(false);
-    setSelectedPattern(null);
     setAutoSelectedPattern(null);
     setHistoricalData([]);
   }, []);
@@ -341,7 +312,8 @@ function App() {
       <main className="container mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Chart Section */}
-          <div className="lg:col-span-2">
+          {/* Chart Section - Now Full Width */}
+          <div className="lg:col-span-3 space-y-6">
             {/* Chart info bar */}
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -370,7 +342,7 @@ function App() {
             )}
 
             {/* Chart */}
-            <div className="bg-surface border border-border rounded-lg p-4 mb-6">
+            <div className="bg-surface border border-border rounded-lg p-4">
               {dataLoading ? (
                 <div className="h-96 flex items-center justify-center">
                   <div className="spinner" />
@@ -380,7 +352,7 @@ function App() {
                   data={data}
                   selection={selection}
                   onSelectionChange={setSelection}
-                  height={400}
+                  height={500}
                   showVolume={true}
                 />
               ) : (
@@ -390,75 +362,12 @@ function App() {
               )}
             </div>
 
-            {/* Instructions */}
-            {!selection && data.length > 0 && (
-              <div className="flex items-center gap-2 p-4 bg-surface border border-border rounded-lg text-secondary">
-                <Info size={18} />
-                <span>
-                  Click on the chart to select a start point, then drag to select
-                  a pattern for similarity search.
-                </span>
-              </div>
-            )}
-
-            {/* Search Panel */}
-            <SearchPanel
+            {/* AI Analysis Section (Replaces Search Panel) */}
+            <AutoAnalysis
               symbol={symbol}
               market={market}
-              selection={selection}
-              onSearch={handleSearch}
-              loading={searchLoading}
+              onPatternSelect={handleAutoPatternSelect}
             />
-          </div>
-
-          {/* Results Section */}
-          <div className="space-y-6">
-            {/* Tab Switcher */}
-            <div className="flex bg-surface border border-border rounded-lg p-1">
-              <button
-                onClick={() => setActiveTab('auto')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-colors ${activeTab === 'auto'
-                  ? 'bg-accent text-background'
-                  : 'text-secondary hover:text-primary'
-                  }`}
-              >
-                <Zap size={16} />
-                自动分析
-              </button>
-              <button
-                onClick={() => setActiveTab('search')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md transition-colors ${activeTab === 'search'
-                  ? 'bg-accent text-background'
-                  : 'text-secondary hover:text-primary'
-                  }`}
-              >
-                <BarChart3 size={16} />
-                手动搜索
-              </button>
-            </div>
-
-            {/* Auto Analysis Tab */}
-            {activeTab === 'auto' && (
-              <AutoAnalysis
-                symbol={symbol}
-                market={market}
-                onPatternSelect={handleAutoPatternSelect}
-              />
-            )}
-
-            {/* Manual Search Tab */}
-            {activeTab === 'search' && (
-              <>
-                {/* Similar Results */}
-                <SimilarResults
-                  results={results as SearchResponse}
-                  onPatternSelect={handlePatternSelect}
-                />
-
-                {/* Analysis Panel */}
-                <AnalysisPanel results={results as SearchResponse} />
-              </>
-            )}
           </div>
         </div>
       </main>

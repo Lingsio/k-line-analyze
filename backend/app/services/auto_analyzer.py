@@ -96,6 +96,157 @@ class AutoAnalyzer:
             
         self.pattern_analyzer = PatternAnalyzer()
 
+    # ============ LLM 缓存功能 ============
+    
+    def _get_cache_path(self, symbol: str, market: str) -> str:
+        """获取缓存文件路径"""
+        from app.config import settings
+        import json
+        
+        # 确保缓存目录存在
+        cache_dir = settings.LLM_CACHE_DIR
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 使用 symbol_market_date 作为文件名
+        today = datetime.now().strftime("%Y-%m-%d")
+        filename = f"{symbol.upper()}_{market.lower()}_{today}.json"
+        return cache_dir / filename
+    
+    def _load_cached_llm_analysis(self, symbol: str, market: str) -> Optional[Dict[str, Any]]:
+        """
+        尝试从缓存加载 LLM 分析结果
+        
+        Returns:
+            缓存数据字典，包含 llm_analysis 和元数据；如果无效则返回 None
+        """
+        from app.config import settings
+        import json
+        
+        cache_path = self._get_cache_path(symbol, market)
+        
+        if not cache_path.exists():
+            return None
+            
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
+            
+            # 检查是否过期
+            expires_at_str = cached_data.get("expires_at")
+            if expires_at_str:
+                expires_at = datetime.fromisoformat(expires_at_str)
+                if datetime.now() > expires_at:
+                    print(f"Cache expired for {symbol} ({market})")
+                    return None
+            
+            print(f"Loaded LLM analysis from cache: {cache_path}")
+            return cached_data
+            
+        except Exception as e:
+            print(f"Failed to load cache: {e}")
+            return None
+    
+    def _save_llm_analysis_to_cache(
+        self, 
+        symbol: str, 
+        market: str, 
+        llm_analysis: str,
+        overall_signal: str = None,
+        overall_confidence: float = None,
+    ) -> bool:
+        """
+        将 LLM 分析结果保存到 JSON 缓存文件
+        
+        Returns:
+            是否保存成功
+        """
+        from app.config import settings
+        import json
+        
+        cache_path = self._get_cache_path(symbol, market)
+        
+        try:
+            now = datetime.now()
+            expires_at = now + timedelta(days=settings.LLM_CACHE_EXPIRY_DAYS)
+            
+            cache_data = {
+                "symbol": symbol.upper(),
+                "market": market.lower(),
+                "analysis_date": now.strftime("%Y-%m-%d"),
+                "created_at": now.isoformat(),
+                "expires_at": expires_at.isoformat(),
+                "llm_provider": settings.LLM_PROVIDER,
+                "llm_model": settings.LLM_MODEL,
+                "overall_signal": overall_signal,
+                "overall_confidence": overall_confidence,
+                "llm_analysis": llm_analysis,
+            }
+            
+            with open(cache_path, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+            
+            print(f"Saved LLM analysis to cache: {cache_path}")
+            return True
+            
+        except Exception as e:
+            print(f"Failed to save cache: {e}")
+            return False
+    
+    def get_all_cached_analyses(self, symbol: str = None, market: str = None) -> List[Dict[str, Any]]:
+        """
+        获取所有缓存的分析列表（用于 API）
+        
+        Args:
+            symbol: 可选，筛选特定股票
+            market: 可选，筛选特定市场
+            
+        Returns:
+            缓存文件摘要列表
+        """
+        from app.config import settings
+        import json
+        
+        cache_dir = settings.LLM_CACHE_DIR
+        if not cache_dir.exists():
+            return []
+            
+        results = []
+        for cache_file in cache_dir.glob("*.json"):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # 筛选
+                if symbol and data.get("symbol", "").upper() != symbol.upper():
+                    continue
+                if market and data.get("market", "").lower() != market.lower():
+                    continue
+                
+                # 返回摘要（不包含完整 llm_analysis 内容）
+                results.append({
+                    "symbol": data.get("symbol"),
+                    "market": data.get("market"),
+                    "analysis_date": data.get("analysis_date"),
+                    "created_at": data.get("created_at"),
+                    "expires_at": data.get("expires_at"),
+                    "llm_provider": data.get("llm_provider"),
+                    "llm_model": data.get("llm_model"),
+                    "cache_file": cache_file.name,
+                })
+            except:
+                continue
+                
+        return results
+    
+    def delete_cache(self, symbol: str, market: str) -> bool:
+        """删除指定股票的缓存"""
+        cache_path = self._get_cache_path(symbol, market)
+        if cache_path.exists():
+            cache_path.unlink()
+            print(f"Deleted cache: {cache_path}")
+            return True
+        return False
+
     async def analyze_stock(
         self,
         symbol: str,
@@ -105,6 +256,7 @@ class AutoAnalyzer:
         top_k: int = 10,
         self_only: bool = False,  # 仅搜索自身历史数据
         use_llm: bool = False,    # 是否使用LLM增强分析
+        force_refresh: bool = False,  # 是否强制刷新（忽略缓存）
     ) -> ComprehensiveAnalysis:
         """
         综合分析股票的近期走势
@@ -174,6 +326,7 @@ class AutoAnalyzer:
                 overall_signal=overall_signal,
                 overall_confidence=overall_confidence,
                 kline_df=kline_df,
+                force_refresh=force_refresh,
             )
 
         return ComprehensiveAnalysis(
@@ -246,6 +399,9 @@ class AutoAnalyzer:
                 self_only=self_only,
             )
 
+            # 动态补全后续收益数据 (如果索引中缺失)
+            similar_patterns = await self._enrich_patterns_with_returns(similar_patterns, period)
+
             # 分析结果统计
             stats = self._calculate_stats(similar_patterns)
 
@@ -307,8 +463,21 @@ class AutoAnalyzer:
                     
                     if self_only:
                         results = self.search_engine.search(query_vector, top_k=top_k * 5, markets=search_scope)
-                        # 过滤只保留同一股票的结果
-                        results = [r for r in results if r.get("symbol") == symbol][:top_k]
+                        # 过滤只保留同一股票的结果 (忽略前缀差异)
+                        def is_same_symbol(s1, s2):
+                            if s1 == s2: return True
+                            # Remove non-alphanumeric and compare?
+                            # Simple approach for CN: check if one ends with other
+                            c1 = ''.join(filter(str.isalnum, str(s1))).upper()
+                            c2 = ''.join(filter(str.isalnum, str(s2))).upper()
+                            # Specific fix for SH/SZ prefix
+                            if c1.endswith(c2) or c2.endswith(c1):
+                                # Ensure sufficient length overlap (e.g. > 4 digits) to avoid partial match false positives?
+                                # Stock codes usually > 4 chars.
+                                return True
+                            return False
+
+                        results = [r for r in results if is_same_symbol(r.get("symbol"), symbol)][:top_k]
                         return results
                     else:
                         return self.search_engine.search(query_vector, top_k=top_k, markets=search_scope)
@@ -322,6 +491,105 @@ class AutoAnalyzer:
             print("Feature extractor not initialized")
             return []
 
+    async def _enrich_patterns_with_returns(
+        self, patterns: List[Dict[str, Any]], period: str
+    ) -> List[Dict[str, Any]]:
+        """
+        动态补充模式的后续收益数据
+        如果索引中没有保存 T+5/T+20 收益，则实时计算
+        """
+        if not patterns:
+            return []
+            
+        # 检查是否已有收益数据
+        if "subsequent_returns" in patterns[0]:
+            return patterns
+
+        enriched_patterns = []
+        for p in patterns:
+            try:
+                # 克隆以避免修改原始引用（尽管这里可能是新对象）
+                new_p = p.copy()
+                
+                # 如果已有，跳过
+                if "subsequent_returns" in new_p and new_p["subsequent_returns"]:
+                    enriched_patterns.append(new_p)
+                    continue
+
+                symbol = new_p.get("symbol")
+                market = new_p.get("market", "us") # 默认为us如果未知
+                end_date_str = new_p.get("end_date")
+                
+                if not symbol or not end_date_str:
+                    enriched_patterns.append(new_p)
+                    continue
+
+                # 计算需要获取的时间范围 (T+30 用于覆盖交易日)
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+                future_start = end_date
+                # 对于日线 T+20 需要约30自然日；对于周线 T+5 需要5周~35天
+                days_forward = 40 if period == "daily" else 150 # 粗略估算
+                future_end = end_date + timedelta(days=days_forward)
+                
+                # 获取后续数据
+                # TODO: 批量获取可能更高效，但这里逐个获取简单可靠
+                df = await self.data_fetcher.fetch_ohlcv(
+                    symbol=symbol,
+                    market=market,
+                    start_date=future_start.strftime("%Y-%m-%d"),
+                    end_date=future_end.strftime("%Y-%m-%d"),
+                    period=period
+                )
+                
+                returns = {"t+5": None, "t+20": None}
+                
+                if df is not None and not df.empty:
+                    # df index is date.
+                    # Price at pattern end (T=0) roughly index 0 (or close to it)
+                    # Wait, start_date passed to fetch was the end_date of pattern.
+                    # So df[0] should be the day of pattern end or next day.
+                    # We need return from T=0 (close price of pattern end).
+                    
+                    # Pattern end date price
+                    # Ideally we have it in pattern metadata? No.
+                    # We assume df.iloc[0] is roughly T=0 or T+1.
+                    # Let's use df search.
+                    
+                    base_price = None
+                    # Try to find price at end_date
+                    if end_date in df.index:
+                        base_price = df.loc[end_date]["close"]
+                    else:
+                        # Fallback to first available if close enough?
+                        # Or pre-fetch slightly earlier?
+                        # Assume df.iloc[0] is close enough to T=0 base
+                        if len(df) > 0:
+                            base_price = df.iloc[0]["close"]
+                    
+                    if base_price:
+                        # Calculate T+5
+                        if len(df) >= 6: # T+0 to T+5 needs 6 rows? Or 5 days after?
+                            # iloc[5] is the 6th day (T+5 if daily)
+                            # For weekly, iloc[5] is T+5 weeks.
+                            p5 = df.iloc[5]["close"] if len(df) > 5 else df.iloc[-1]["close"]
+                            returns["t+5"] = (p5 - base_price) / base_price
+                        
+                        # Calculate T+20
+                        target_idx = 20
+                        if len(df) > target_idx:
+                            p20 = df.iloc[target_idx]["close"]
+                            returns["t+20"] = (p20 - base_price) / base_price
+                
+                new_p["subsequent_returns"] = returns
+                enriched_patterns.append(new_p)
+
+            except Exception as e:
+                # print(f"Failed to enrich pattern {p.get('symbol')}: {e}")
+                new_p["subsequent_returns"] = {"t+5": None, "t+20": None}
+                enriched_patterns.append(new_p)
+                
+        return enriched_patterns
+
     def _calculate_stats(self, patterns: List[Dict[str, Any]]) -> Dict[str, float]:
         """计算统计指标"""
         if not patterns:
@@ -333,8 +601,15 @@ class AutoAnalyzer:
                 "confidence": 0,
             }
 
-        returns_5 = [p["subsequent_returns"]["t+5"] for p in patterns if p["subsequent_returns"].get("t+5") is not None]
-        returns_20 = [p["subsequent_returns"]["t+20"] for p in patterns if p["subsequent_returns"].get("t+20") is not None]
+        returns_5 = []
+        returns_20 = []
+        
+        for p in patterns:
+            sub = p.get("subsequent_returns", {})
+            if sub and sub.get("t+5") is not None:
+                returns_5.append(sub.get("t+5"))
+            if sub and sub.get("t+20") is not None:
+                returns_20.append(sub.get("t+20"))
 
         win_rate_5 = sum(1 for r in returns_5 if r > 0) / len(returns_5) if returns_5 else 0.5
         win_rate_20 = sum(1 for r in returns_20 if r > 0) / len(returns_20) if returns_20 else 0.5
@@ -531,37 +806,101 @@ class AutoAnalyzer:
         overall_signal: str,
         overall_confidence: float,
         kline_df: pd.DataFrame = None,
+        force_refresh: bool = False,
     ) -> Optional[str]:
         """
-        使用 Gemini 多模态进行智能分析（可传入K线图）
-        
-        Args:
-            symbol: 股票代码
-            market: 市场
-            timeframe_analyses: 各时间维度分析结果
-            overall_signal: 综合信号
-            overall_confidence: 综合置信度
-            kline_df: K线数据（用于生成图表）
-            
-        Returns:
-            LLM生成的分析报告
+        使用 Gemini/Qwen 多模态进行智能分析（支持多张K线图）
         """
         from app.config import settings
         
         if not settings.LLM_ENABLED or not settings.LLM_API_KEY:
             return None
+        
+        # Check cache
+        if not force_refresh:
+            cached = self._load_cached_llm_analysis(symbol, market)
+            if cached and cached.get("llm_analysis"):
+                print(f"Using cached LLM analysis for {symbol} ({market})")
+                return cached["llm_analysis"]
             
         try:
-            import httpx
-            import base64
-            from io import BytesIO
+            # Prepare images list
+            images = []
+            image_descriptions = []
             
-            # 生成K线图图像
-            image_base64 = None
+            # 1. Current stock chart
             if kline_df is not None and not kline_df.empty:
-                image_base64 = self._generate_kline_chart(kline_df, symbol)
+                current_img = self._generate_kline_chart(kline_df, symbol)
+                if current_img:
+                    images.append(current_img)
+                    image_descriptions.append(f"Image 1: Current Stock {symbol} ({market}) Daily Chart")
             
-            # 构建分析数据摘要
+            # 2. Historical similar patterns charts
+            # Select top patterns (e.g., 1 from Daily, 1 from Weekly)
+            historical_details = []
+            processed_patterns = set()
+            
+            # Find candidate patterns
+            candidates = []
+            for tf in ["daily", "weekly"]:
+                # Find analysis for this timeframe
+                analysis = next((a for a in timeframe_analyses if tf in a.timeframe), None)
+                if analysis and analysis.similar_patterns:
+                    top_p = analysis.similar_patterns[0]
+                    # Avoid duplicates
+                    pid = f"{top_p.get('symbol')}_{top_p.get('end_date')}"
+                    if pid not in processed_patterns:
+                        candidates.append((tf, top_p))
+                        processed_patterns.add(pid)
+            
+            # Fetch data and generate charts for candidates
+            for i, (tf_name, pattern) in enumerate(candidates):
+                try:
+                    p_symbol = pattern.get("symbol")
+                    p_market = pattern.get("market", "us")
+                    p_end_date = datetime.strptime(pattern.get("end_date"), "%Y-%m-%d")
+                    
+                    # Fetch range: 60 days before end_date to 20 days after (to show outcome)
+                    # Note: fetch_ohlcv expects strings
+                    start_fetch = p_end_date - timedelta(days=90)
+                    end_fetch = p_end_date + timedelta(days=30)
+                    
+                    hist_df = await self.data_fetcher.fetch_ohlcv(
+                        symbol=p_symbol,
+                        market=p_market,
+                        start_date=start_fetch.strftime("%Y-%m-%d"),
+                        end_date=end_fetch.strftime("%Y-%m-%d"),
+                        period="daily" # Use daily for better visual comparison usually
+                    )
+                    
+                    if hist_df is not None and not hist_df.empty:
+                        hist_img = self._generate_kline_chart(hist_df, f"Similar: {p_symbol}")
+                        if hist_img:
+                            images.append(hist_img)
+                            img_idx = len(images)
+                            image_descriptions.append(f"Image {img_idx}: Historical Similar Pattern {p_symbol} ({p_market}) in {tf_name} timeframe. Pattern ended on {pattern.get('end_date')}.")
+                            
+                            # Update historical details text to reference image
+                            historical_details.append(f"- Similar Pattern {img_idx-1} ({tf_name}): {p_symbol} on {pattern.get('end_date')}. See Image {img_idx}.")
+
+                except Exception as e:
+                    print(f"Failed to process historical pattern {pattern.get('symbol')}: {e}")
+            
+            # Build text details for all patterns (including those without charts)
+            pattern_text_block = ""
+            for a in timeframe_analyses:
+                if a.similar_patterns:
+                    top_patterns = a.similar_patterns[:3]
+                    pattern_text_block += f"\n### {a.timeframe} Search Results:\n"
+                    for i, p in enumerate(top_patterns, 1):
+                        sub = p.get('subsequent_returns', {})
+                        t5 = sub.get('t+5')
+                        t20 = sub.get('t+20')
+                        t5_str = f"{t5*100:+.2f}%" if t5 is not None else "N/A"
+                        t20_str = f"{t20*100:+.2f}%" if t20 is not None else "N/A"
+                        pattern_text_block += f"{i}. {p['symbol']} ({p['market']}) - Sim: {p['similarity_score']:.1%}, Returns: T+5={t5_str}, T+20={t20_str}\n"
+
+            # Construct Prompt
             analysis_summary = []
             for a in timeframe_analyses:
                 analysis_summary.append({
@@ -571,89 +910,91 @@ class AutoAnalyzer:
                     "win_rate_20d": f"{a.win_rate_20*100:.1f}%",
                     "avg_return_5d": f"{a.avg_return_5*100:+.2f}%",
                     "avg_return_20d": f"{a.avg_return_20*100:+.2f}%",
-                    "similar_count": len(a.similar_patterns),
                     "confidence": f"{a.confidence*100:.0f}%",
                 })
-            
-            # 准备历史形态详细信息
-            historical_details = []
-            for a in timeframe_analyses:
-                if a.similar_patterns:
-                    # 只取前3个最相似的形态作为示例
-                    top_patterns = a.similar_patterns[:3]
-                    pattern_info = f"\n### {a.timeframe} 时间周期相似形态:\n"
-                    for i, p in enumerate(top_patterns, 1):
-                        pattern_info += f"{i}. {p['symbol']} ({p['market']}), 相似度: {p['similarity_score']:.1%}\n"
-                        pattern_info += f"   后续收益: T+5: {p['subsequent_returns']['t+5']*100:+.2f}%, T+20: {p['subsequent_returns']['t+20']*100:+.2f}%\n"
-                    historical_details.append(pattern_info)
-            
-            prompt = f"""你是一位资深的技术分析专家和量化交易员，拥有20年K线形态分析经验。
 
-请为股票 **{symbol}** ({market}市场) 提供一份全面的技术分析报告。
+            prompt = f"""You are a senior Technical Analysis Expert and Quantitative Trader using Qwen-VL.
+你是一位资深的技术分析专家和量化交易员。
 
-## 📊 当前量化分析数据
+**Input Images / 输入图片**:
+{chr(10).join(image_descriptions)}
 
-**综合信号**: {overall_signal}（置信度: {overall_confidence*100:.1f}%）
+Please provide a comprehensive, professional, and in-depth technical analysis report for **{symbol}** ({market}).
+请为股票 **{symbol}** ({market}市场) 提供一份专业、详尽的中英双语技术分析报告。
 
-**多时间维度分析**:
+## 📊 Quantitative Analysis Data / 量化分析数据
+**Overall Signal**: {overall_signal} (Confidence: {overall_confidence*100:.1f}%)
+
+**Multi-Timeframe Stats**:
 {self._format_analysis_for_llm(analysis_summary)}
 
-## 📖 历史相似形态回顾
+## 📖 Historical Patterns Comparison / 历史形态对比
+We have identified similar historical patterns from our database.
+**Analysis of Similar Patterns**:
+{pattern_text_block}
 
-基于我们的量化模型，找到了以下历史相似形态：
-{''.join(historical_details)}
+**Visual Comparison Task**:
+- **Compare Image 1 (Current) with other images (Historical Patterns).**
+- Analyze the similarity in trend, candlestick shapes, and volume.
+- Discuss how the historical patterns evolved (look at the right side of historical charts).
+- **Comparing** the current setup with historical outcomes is CRITICAL.
 
-## 📝 分析任务
+## 📝 Report Structure / 报告结构
 
-请基于提供的K线图和上述量化数据，撰写一份结构化的技术分析报告，包含以下部分：
+### 1. Current Technical Analysis (Based on Image 1)
+- Trend, Patterns, Key Levels.
 
-### 1. **当前技术形态识别** (150-200字)
-- 仔细观察K线图，识别当前形态特征（如：头肩顶/底、双重顶/底、三角形、旗形、楔形等）
-- 描述价格趋势（上升/下降/横盘整理）
-- 识别关键的K线组合信号（如：吞没、锤子线、十字星等）
-- 标注当前所处的形态阶段
+### 2. Historical Similarity Analysis (Visual Comparison)
+- Explicitly refence Image 2, Image 3 etc.
+- "As seen in Image 2, stock XYZ showed a similar bottoming structure..."
+- "Looking at the outcome in Image 2..."
 
-### 2. **多周期趋势分析** (100-150字)
-- 综合日K、周K、月K的信号一致性
-- 分析趋势的强度和可持续性
-- 指出不同周期之间的共振或分歧
-- 评估当前趋势的健康程度
+### 3. Quantitative Insights
+- Integrate the win rates and return stats provided above.
 
-### 3. **历史形态对比与启示** (200-250字)
-- 分析历史相似形态的后续表现统计规律
-- 指出当前形态与历史案例的相似点和差异点
-- 从历史数据中提取可借鉴的交易经验
-- 评估历史胜率和期望收益的参考价值
+### 4. Conclusion & Strategy
+- Practical trading advice.
 
-### 4. **关键价位与技术指标** (100-150字)
-- 标注重要的支撑位和阻力位（基于图表）
-- 识别成交量配合情况
-- 指出可能的突破方向和确认信号
+## 📋 Output Requirements
+1. **Bilingual**: English paragraph followed by Chinese paragraph.
+2. **Professional**: Use institutional terminology.
+3. **Deep**: Detailed visual analysis of provided charts.
 
-### 5. **操作建议与风险提示** (150-200字)
-- 给出明确的交易方向建议（看多/看空/观望）
-- 建议入场时机和价位
-- 推荐仓位管理策略（轻仓试探/正常仓位/重仓）
-- 设定止损位和止盈目标
-- 列出关键风险点和需要关注的市场因素
+Please start the analysis:"""
 
-## 📋 输出要求
+            result = None
+            if settings.LLM_PROVIDER == "qwen":
+                result = await self._generate_with_qwen(prompt, images)
+            else:
+                # Fallback/Legacy for Gemini (just use first image)
+                result = await self._generate_with_gemini(prompt, images[0] if images else None)
+            
+            if result:
+                self._save_llm_analysis_to_cache(
+                    symbol=symbol, 
+                    market=market, 
+                    llm_analysis=result,
+                    overall_signal=overall_signal,
+                    overall_confidence=overall_confidence
+                )
+            
+            return result
+            
+        except Exception as e:
+            print(f"LLM analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
-1. 使用专业但易懂的语言
-2. 总字数控制在700-900字之间
-3. 结论要具体，避免模糊表述
-4. 如果图表信息不足，基于量化数据给出最佳判断
-5. 用emoji适当标记段落，增强可读性
-
-请开始撰写完整的技术分析报告："""
-
-            # 构建 Gemini API 请求
+    async def _generate_with_gemini(self, prompt: str, image_base64: Optional[str]) -> Optional[str]:
+        """Google Gemini API"""
+        try:
+            from app.config import settings
+            import httpx
+            
             api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.LLM_MODEL}:generateContent?key={settings.LLM_API_KEY}"
             
-            # 构建请求内容
             parts = []
-            
-            # 添加图像（如果有）
             if image_base64:
                 parts.append({
                     "inline_data": {
@@ -661,17 +1002,13 @@ class AutoAnalyzer:
                         "data": image_base64
                     }
                 })
-            
-            # 添加文本提示
             parts.append({"text": prompt})
             
             request_body = {
-                "contents": [{
-                    "parts": parts
-                }],
+                "contents": [{"parts": parts}],
                 "generationConfig": {
                     "temperature": 0.7,
-                    "maxOutputTokens": 2048,
+                    "maxOutputTokens": 4096,
                 }
             }
 
@@ -684,7 +1021,6 @@ class AutoAnalyzer:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    # Gemini 返回格式
                     if "candidates" in data and len(data["candidates"]) > 0:
                         content = data["candidates"][0].get("content", {})
                         parts = content.get("parts", [])
@@ -694,12 +1030,82 @@ class AutoAnalyzer:
                 else:
                     print(f"Gemini API error: {response.status_code} - {response.text}")
                     return None
+        except Exception as e:
+            print(f"Gemini generation failed: {e}")
+            return None
+
+    async def _generate_with_qwen(self, prompt: str, images: List[str]) -> Optional[str]:
+        """
+        Alibaba Qwen-VL API (DashScope)
+        Supports multiple images
+        """
+        try:
+            from app.config import settings
+            import httpx
+            
+            api_url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+            
+            messages = [
+                {
+                    "role": "system",
+                    "content": [{"text": "You are a helpful assistant."}]
+                },
+                {
+                    "role": "user",
+                    "content": []
+                }
+            ]
+            
+            user_content = messages[1]["content"]
+            
+            # Add images
+            if images:
+                for img_b64 in images:
+                    if img_b64:
+                        user_content.append({"image": f"data:image/png;base64,{img_b64}"})
+                
+            user_content.append({"text": prompt})
+            
+            request_body = {
+                "model": settings.LLM_MODEL, # qwen-vl-max
+                "input": {
+                    "messages": messages
+                },
+                "parameters": {
+                    "top_p": 0.8,
+                    "top_k": 50,
+                    "max_tokens": 1500
+                }
+            }
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {settings.LLM_API_KEY}",
+            }
+
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    api_url,
+                    headers=headers,
+                    json=request_body
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if "output" in data and "text" in data["output"]:
+                        return data["output"]["text"]
+                    if "code" in data:
+                        print(f"Qwen API logical error: {data}")
+                    return None
+                else:
+                    print(f"Qwen API error: {response.status_code} - {response.text}")
+                    return None
                     
         except Exception as e:
-            print(f"LLM analysis failed: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Qwen generation failed: {e}")
             return None
+                    
+
     
     def _generate_kline_chart(self, df: pd.DataFrame, symbol: str) -> Optional[str]:
         """
@@ -824,7 +1230,7 @@ class AutoAnalyzer:
         return "\n".join(lines)
 
 
-async def quick_analyze(symbol: str, market: str = "us", self_only: bool = False, use_llm: bool = False) -> Dict[str, Any]:
+async def quick_analyze(symbol: str, market: str = "us", self_only: bool = False, use_llm: bool = False, force_refresh: bool = False) -> Dict[str, Any]:
     """
     快速分析接口 - 供 API 调用
 
@@ -833,6 +1239,7 @@ async def quick_analyze(symbol: str, market: str = "us", self_only: bool = False
         market: 市场
         self_only: 仅搜索自身历史
         use_llm: 使用LLM增强分析
+        force_refresh: 是否强制刷新（忽略缓存）
 
     Returns:
         分析结果字典
@@ -848,6 +1255,7 @@ async def quick_analyze(symbol: str, market: str = "us", self_only: bool = False
         search_scope=search_scope,
         self_only=self_only,
         use_llm=use_llm,
+        force_refresh=force_refresh,
     )
 
     # 转换为字典格式

@@ -172,7 +172,16 @@ class DataFetcher:
             else:
                 # Default inference
                 code = symbol
-                prefix = "sh" if symbol.startswith("6") else "sz"
+                # User request: Default to Shanghai (sh), do not default to sz.
+                # Standard Rules:
+                # 6xxxxx -> SH
+                # 3xxxxx -> SZ (ChiNext)
+                # 0xxxxx -> Ambiguous (SZ Main Board OR SH Indices) -> User wants SH default
+                
+                if code.startswith("3"):
+                    prefix = "sz"
+                else:
+                    prefix = "sh"
             
             full_symbol = f"{prefix}{code}"
 

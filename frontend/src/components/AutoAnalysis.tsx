@@ -126,7 +126,7 @@ export function AutoAnalysis({ symbol, market, onPatternSelect }: AutoAnalysisPr
   const [error, setError] = useState<string | null>(null);
   const [expandedTimeframe, setExpandedTimeframe] = useState<string | null>(null);
 
-  const fetchAnalysis = async (useLlm: boolean = false) => {
+  const fetchAnalysis = async (useLlm: boolean = false, forceRefresh: boolean = false) => {
     if (!symbol) return;
 
     if (useLlm) {
@@ -141,6 +141,7 @@ export function AutoAnalysis({ symbol, market, onPatternSelect }: AutoAnalysisPr
         market,
         self_only: 'true',
         use_llm: useLlm.toString(),
+        force_refresh: forceRefresh.toString(),
       });
 
       const response = await fetch(
@@ -250,10 +251,10 @@ export function AutoAnalysis({ symbol, market, onPatternSelect }: AutoAnalysisPr
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fetchAnalysis(true)}
+            onClick={() => fetchAnalysis(true, false)}
             disabled={aiLoading}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded transition-colors disabled:opacity-50"
-            title="AI智能分析当前K线形态"
+            title="AI智能分析当前K线形态（使用缓存）"
           >
             {aiLoading ? (
               <Loader2 size={14} className="animate-spin" />
@@ -261,6 +262,14 @@ export function AutoAnalysis({ symbol, market, onPatternSelect }: AutoAnalysisPr
               <Sparkles size={14} />
             )}
             <span className="text-sm">{aiLoading ? 'AI分析中...' : 'AI分析'}</span>
+          </button>
+          <button
+            onClick={() => fetchAnalysis(true, true)}
+            disabled={aiLoading}
+            className="flex items-center gap-1.5 px-2 py-1.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded transition-colors disabled:opacity-50"
+            title="强制重新生成AI分析（忽略缓存）"
+          >
+            <RefreshCw size={14} />
           </button>
           <button
             onClick={() => fetchAnalysis(false)}

@@ -1,2 +1,25 @@
 # 忽略环境变量文件
 .env
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Trained models
+backend/trained_models/
+*.pt
+*.pth
+*.onnx
+
+# Large generated indices
+backend/faiss_index/
+backend/faiss_index/index.faiss
+backend/faiss_index/metadata.pkl
+
+# Python cache
+__pycache__/
+*.pyc
+
+# System files
+.DS_Store
+Thumbs.db
