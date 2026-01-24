@@ -5,6 +5,27 @@ from datetime import date
 
 router = APIRouter()
 
+# Global cache for search engine
+_search_engine_cache = None
+
+def get_search_engine():
+    global _search_engine_cache
+    from app.services.similarity_search import SimilaritySearchEngine
+    from app.config import settings
+    
+    if _search_engine_cache is None:
+        print("Initializing Search Engine and loading index...")
+        engine = SimilaritySearchEngine()
+        if settings.FAISS_INDEX_DIR.exists():
+            success = engine.load_index(settings.FAISS_INDEX_DIR)
+            print(f"Index load status: {success}")
+        else:
+            print(f"Index directory not found: {settings.FAISS_INDEX_DIR}")
+        _search_engine_cache = engine
+    
+    return _search_engine_cache
+
+
 
 class SearchRequest(BaseModel):
     symbol: str = Field(..., description="Stock symbol to search")
@@ -87,7 +108,10 @@ async def search_similar_patterns(request: SearchRequest):
         # Initialize services
         data_fetcher = DataFetcher()
         preprocessor = KLinePreprocessor()
-        search_engine = SimilaritySearchEngine()
+        data_fetcher = DataFetcher()
+        preprocessor = KLinePreprocessor()
+        # Use singleton to ensure index is loaded
+        search_engine = get_search_engine()
         dtw_matcher = DTWMatcher()
         analyzer = PatternAnalyzer()
 
@@ -244,7 +268,8 @@ async def get_search_status():
     """Get status of the search engine (index loaded, etc.)."""
     from app.services.similarity_search import SimilaritySearchEngine
 
-    engine = SimilaritySearchEngine()
+    # Use singleton to check status
+    engine = get_search_engine()
     return {
         "index_loaded": engine.is_index_loaded(),
         "total_vectors": engine.get_total_vectors(),

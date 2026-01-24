@@ -212,6 +212,7 @@ async def build_index(
     end_date: str = None,
     window_size: int = 60,
     step: int = 5,
+    demo: bool = False,
 ):
     """Build the complete FAISS index."""
     print("=" * 60)
@@ -229,6 +230,7 @@ async def build_index(
 
     print(f"Target Markets: {markets}")
     print(f"Date range: {start_date} to {end_date}")
+    print(f"Demo Mode: {demo}")
     print("=" * 60)
     
     # Check GPU
@@ -254,7 +256,7 @@ async def build_index(
 
     for market in markets:
         # Get Symbols (Dynamic)
-        if market in ['cn', 'hk']:
+        if market in ['cn', 'hk'] and not demo:
             # Use dynamic fetch for CN/HK
             symbols = await get_all_symbols(market)
             if not symbols: 
@@ -265,7 +267,11 @@ async def build_index(
              # For now, Stick to hardcoded extended list (50 stocks) ensures stability.
              # User asked for "All Markets". 
              # I will blindly try to fetch US spot if possible.
-             symbols = await get_all_symbols('us')
+             if not demo:
+                 symbols = await get_all_symbols('us')
+             else:
+                 symbols = []
+                 
              if not symbols:
                  symbols = STOCK_LISTS.get('us', [])
         else:
@@ -366,6 +372,8 @@ def main():
     parser.add_argument('--step', type=int, default=5,
                         help='Step size between windows')
 
+    parser.add_argument('--demo', action='store_true', help='Use demo stock lists (fast)')
+
     args = parser.parse_args()
 
     asyncio.run(build_index(
@@ -374,6 +382,7 @@ def main():
         end_date=args.end_date,
         window_size=args.window_size,
         step=args.step,
+        demo=args.demo
     ))
 
 

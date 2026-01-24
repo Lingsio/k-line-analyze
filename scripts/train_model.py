@@ -15,7 +15,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from tqdm import tqdm
 
@@ -26,48 +26,80 @@ from app.models.cnn_encoder import (
     create_default_transforms,
 )
 from app.services.preprocessor import KLinePreprocessor
+from app.services.data_fetcher import DataFetcher
 from app.config import settings
+import asyncio
+
+# Stock lists for training (subset of major stocks)
+STOCK_LISTS = {
+    'us': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META'],
+    'cn': ['600519', '000858', '601318', '600036', '601166'],
+    'hk': ['0700', '9988', '0005', '0939', '1299'],
+    'tw': ['2330', '2317', '2454', '2412', '2308']
+}
 
 
-def load_sample_data(data_dir: Path, max_samples: int = 10000):
+async def load_real_training_data(max_samples: int = 10000):
     """
-    Load sample K-line images for training.
-
-    In production, this would load pre-generated images from disk.
-    For demo, we generate synthetic data.
+    Load real K-line images for training by fetching OHLCV data.
     """
-    print("Generating synthetic training data...")
-
+    print("Fetching real training data...")
+    fetcher = DataFetcher()
     preprocessor = KLinePreprocessor()
     images = []
 
-    # Generate synthetic K-line patterns
-    for i in tqdm(range(max_samples), desc="Generating samples"):
-        # Random OHLCV data (60 days)
-        n_days = 60
+    # Calculate target samples per market to ensure diversity
+    markets = list(STOCK_LISTS.keys())
+    target_per_market = max_samples // len(markets)
 
-        # Generate random walk for close prices
-        returns = np.random.normal(0, 0.02, n_days)
-        close = 100 * np.cumprod(1 + returns)
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=365*3)).strftime('%Y-%m-%d')
 
-        # Generate OHLC from close
-        data = {
-            'open': close * (1 + np.random.uniform(-0.01, 0.01, n_days)),
-            'high': close * (1 + np.abs(np.random.normal(0.005, 0.005, n_days))),
-            'low': close * (1 - np.abs(np.random.normal(0.005, 0.005, n_days))),
-            'close': close,
-            'volume': np.random.uniform(1e6, 1e8, n_days),
-        }
+    for market, symbols in STOCK_LISTS.items():
+        print(f"Fetching {market.upper()} data...")
+        market_samples = 0
+        
+        # Shuffle symbols to get random subset if needed
+        np.random.shuffle(symbols)
 
-        import pandas as pd
-        df = pd.DataFrame(data)
+        for symbol in tqdm(symbols, desc=f"{market.upper()}"):
+            try:
+                # Fetch data
+                df = await fetcher.fetch_ohlcv(
+                    symbol=symbol,
+                    market=market,
+                    start_date=start_date,
+                    end_date=end_date
+                )
 
-        # Normalize and render
-        normalized = preprocessor.normalize(df)
-        image = preprocessor.to_kline_image(normalized, image_size=128)
+                if df is None or len(df) < 60:
+                    continue
 
-        images.append(image)
+                # Create windows (stride=5 to augment data)
+                windows = preprocessor.create_windows(df, window_size=60, step=5)
+                
+                for w_df, _, _ in windows:
+                    # Randomly drop some windows if we have too many, or keep all?
+                    # Let's keep all for now until we hit limit.
+                    normalized = preprocessor.normalize(w_df)
+                    image = preprocessor.to_kline_image(normalized, image_size=128)
+                    images.append(image)
+                    market_samples += 1
 
+                if market_samples >= target_per_market:
+                    break
+
+            except Exception as e:
+                print(f"Error processing {symbol}: {e}")
+                continue
+    
+    # Shuffle all collected images
+    print(f"Total collected samples: {len(images)}")
+    if len(images) > max_samples:
+        import random
+        random.shuffle(images)
+        images = images[:max_samples]
+    
     return images
 
 
@@ -132,21 +164,21 @@ def validate(
     return total_loss / len(dataloader)
 
 
-def main():
+async def main_block():
     # Configuration
     config = {
         'embedding_dim': 256,
         'batch_size': 32,
         'learning_rate': 1e-4,
-        'epochs': 50,
+        'epochs': 3,
         'margin': 0.3,
-        'num_samples': 10000,
+        'num_samples': 5000, # Reduce slightly for real data speed
         'val_split': 0.1,
         'device': 'cuda' if torch.cuda.is_available() else 'cpu',
     }
 
     print("=" * 60)
-    print("K-Line Pattern Encoder Training")
+    print("K-Line Pattern Encoder Training (Real Data)")
     print("=" * 60)
     print(f"Device: {config['device']}")
     print(f"Embedding dimension: {config['embedding_dim']}")
@@ -156,8 +188,7 @@ def main():
     print("=" * 60)
 
     # Load data
-    data_dir = settings.DATA_DIR / 'processed'
-    images = load_sample_data(data_dir, config['num_samples'])
+    images = await load_real_training_data(max_samples=config['num_samples'])
 
     # Split into train/val
     split_idx = int(len(images) * (1 - config['val_split']))
@@ -233,5 +264,8 @@ def main():
     print("=" * 60)
 
 
+    print("=" * 60)
+
+
 if __name__ == '__main__':
-    main()
+    asyncio.run(main_block())
