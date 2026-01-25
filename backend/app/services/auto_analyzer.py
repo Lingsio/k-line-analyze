@@ -911,6 +911,7 @@ class AutoAnalyzer:
                     "avg_return_5d": f"{a.avg_return_5*100:+.2f}%",
                     "avg_return_20d": f"{a.avg_return_20*100:+.2f}%",
                     "confidence": f"{a.confidence*100:.0f}%",
+                    "similar_count": len(a.similar_patterns) if a.similar_patterns else 0,
                 })
 
             prompt = f"""You are a senior Technical Analysis Expert and Quantitative Trader using Qwen-VL.
