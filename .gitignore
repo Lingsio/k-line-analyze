@@ -5,16 +5,8 @@
 node_modules/
 frontend/node_modules/
 
-# Trained models
-backend/trained_models/
-*.pt
-*.pth
-*.onnx
 
-# Large generated indices
-backend/faiss_index/
-backend/faiss_index/index.faiss
-backend/faiss_index/metadata.pkl
+# Trained models and indices are now tracked via Git LFS
 
 # Python cache
 __pycache__/
