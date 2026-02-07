@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.api.routes import stock, search, analysis
+from app.api.routes import stock, search, analysis, prediction
 
 
 @asynccontextmanager
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(stock.router, prefix=settings.API_V1_PREFIX, tags=["Stock"])
 app.include_router(search.router, prefix=settings.API_V1_PREFIX, tags=["Search"])
 app.include_router(analysis.router, prefix=settings.API_V1_PREFIX, tags=["Analysis"])
+app.include_router(prediction.router, prefix=settings.API_V1_PREFIX, tags=["Prediction"])
 
 
 @app.get("/")
