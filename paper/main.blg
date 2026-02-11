@@ -1,0 +1,49 @@
+This is BibTeX, Version 0.99d (TeX Live 2025)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+The style file: splncs04.bst
+Database file #1: main.bib
+Warning--can't use both volume and number fields in Ganin16
+Warning--empty journal in Long15
+You've used 15 entries,
+            2850 wiz_defined-function locations,
+            703 strings with 6856 characters,
+and the built_in function-call counts, 8942 in all, are:
+= -- 757
+> -- 255
+< -- 18
++ -- 106
+- -- 90
+* -- 552
+:= -- 1113
+add.period$ -- 18
+call.type$ -- 15
+change.case$ -- 100
+chr.to.int$ -- 0
+cite$ -- 17
+duplicate$ -- 806
+empty$ -- 789
+format.name$ -- 103
+if$ -- 1966
+int.to.chr$ -- 0
+int.to.str$ -- 15
+missing$ -- 156
+newline$ -- 51
+num.names$ -- 30
+pop$ -- 295
+preamble$ -- 1
+purify$ -- 75
+quote$ -- 0
+skip$ -- 276
+stack$ -- 0
+substring$ -- 554
+swap$ -- 459
+text.length$ -- 18
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 60
+warning$ -- 2
+while$ -- 76
+width$ -- 17
+write$ -- 152
+(There were 2 warnings)

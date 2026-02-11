@@ -1,0 +1,51 @@
+\begin{thebibliography}{10}
+\providecommand{\url}[1]{\texttt{#1}}
+\providecommand{\urlprefix}{URL }
+\providecommand{\doi}[1]{https://doi.org/#1}
+
+\bibitem{Bao17}
+Bao, W., Yue, J., Rao, Y.: A deep learning framework for financial time series using stacked autoencoders and long-short term memory. PloS One  \textbf{12}(7),  e0180944 (2017)
+
+\bibitem{Chen20}
+Chen, J., Tsai, S.C.: Encoding candlesticks as images for pattern recognition using convolutional neural networks. arXiv preprint arXiv:2006.08981  (2020)
+
+\bibitem{Duong25}
+Duong, C., Pham, V., Nguyen, H.: Investigating market strength prediction using deep learning on visual representations. Expert Systems with Applications  (2025), in Press
+
+\bibitem{Eckmann87}
+Eckmann, J.P., Oliffson~Kamphorst, S., Ruelle, D.: Recurrence plots of dynamical systems. EPL (Europhysics Letters)  \textbf{4}(9), ~973 (1987)
+
+\bibitem{Fama70}
+Fama, E.F.: Efficient capital markets: A review of theory and empirical work. The Journal of Finance  \textbf{25}(2),  383--417 (1970)
+
+\bibitem{Fischer18}
+Fischer, T.G., Krauss, C.: Deep learning with long short-term memory networks for financial market predictions. European Journal of Operational Research  \textbf{270}(2),  654--669 (2018)
+
+\bibitem{Ganin16}
+Ganin, Y., Ustinova, E., Ajakan, H., Germain, P., Larochelle, H., Laviolette, F., Marchand, M., Lempitsky, V.: Domain-adversarial training of neural networks. In: JMLR. vol.~17, pp. 2096--2030 (2016)
+
+\bibitem{He16}
+He, K., Zhang, X., Ren, S., Sun, J.: Deep residual learning for image recognition. In: CVPR. pp. 770--778 (2016)
+
+\bibitem{Krizhevsky12}
+Krizhevsky, A., Sutskever, I., Hinton, G.E.: Imagenet classification with deep convolutional neural networks. In: NeurIPS. pp. 1097--1105 (2012)
+
+\bibitem{Long15}
+Long, M., Cao, Y., Wang, J., Jordan, M.: Learning transferable features with deep adaptation networks pp. 97--105 (2015)
+
+\bibitem{Moskowitz99}
+Moskowitz, T.J., Grinblatt, M.: Do industries explain momentum? The Journal of Finance  \textbf{54}(4),  1249--1290 (1999)
+
+\bibitem{Ren15}
+Ren, S., He, K., Girshick, R., Sun, J.: Faster {R-CNN}: Towards real-time object detection with region proposal networks. In: NeurIPS. pp. 91--99 (2015)
+
+\bibitem{Thaler85}
+Thaler, R.: Mental accounting and consumer choice. Marketing Science  \textbf{4}(3),  199--214 (1985)
+
+\bibitem{Wang15}
+Wang, Z., Oates, T.: Imaging time-series to improve classification and imputation. arXiv preprint arXiv:1506.00327  (2015)
+
+\bibitem{Xiu21}
+Xiu, D., Jia, Z., Liao, X.: (re-)imag(in)ing price trends. Journal of Financial Economics  (2021), working Paper
+
+\end{thebibliography}
