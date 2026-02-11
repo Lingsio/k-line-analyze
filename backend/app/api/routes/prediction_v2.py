@@ -24,7 +24,6 @@ V2_WINDOW_SIZE = 10
 class PredictionRequestV2(BaseModel):
     symbol: str
     market: str = "us"
-    model_type: str = "transformer"  # "transformer" or "cnn"
     model_variant: str = "universal"
     window_size: int = V2_WINDOW_SIZE
 
@@ -32,7 +31,6 @@ class PredictionRequestV2(BaseModel):
 class PredictionResultV2(BaseModel):
     symbol: str
     market: str
-    model_type: str
     window_size: int
     image_size: int
     predictions: Dict
@@ -54,10 +52,9 @@ async def list_v2_models():
             with open(config_path) as cf:
                 config = json.load(cf)
 
-        model_type = "transformer" if "transformer" in name else "cnn"
         models.append({
             "name": name,
-            "type": model_type,
+            "type": "cnn",
             "variant": "universal" if "universal" in name else name,
             "file": str(f),
             "config": config,
@@ -75,10 +72,7 @@ async def predict_stock_v2(request: PredictionRequestV2):
     models_dir = settings.MODELS_DIR / "predictors"
 
     # Resolve model file
-    if request.model_type == "cnn":
-        prefix = "cnn_v2"
-    else:
-        prefix = "transformer_v2"
+    prefix = "cnn_v2"
 
     if request.model_variant == "universal":
         model_file = f"{prefix}_universal.pt"
@@ -93,18 +87,14 @@ async def predict_stock_v2(request: PredictionRequestV2):
             raise HTTPException(
                 status_code=404,
                 detail=f"No v2 model found: {model_file}. "
-                       f"Train with: scripts/train_{prefix.replace('_v2','')}_predictor_v2.py",
+                       f"Train with: scripts/train_cnn_predictor_v2.py",
             )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Load model
-    if request.model_type == "transformer":
-        from app.models.transformer_predictor import KLineTransformerPredictor
-        model = KLineTransformerPredictor.load(str(model_path), device=device)
-    else:
-        from app.models.cnn_predictor_v2 import KLineCNNPredictorV2
-        model = KLineCNNPredictorV2.load(str(model_path), device=device)
+    from app.models.cnn_predictor_v2 import KLineCNNPredictorV2
+    model = KLineCNNPredictorV2.load(str(model_path), device=device)
 
     model = model.to(device)
     model.eval()
@@ -128,22 +118,15 @@ async def predict_stock_v2(request: PredictionRequestV2):
     window_df = df.iloc[-request.window_size:]
 
     # Prepare input
-    if request.model_type == "transformer":
-        from app.models.prediction_dataset_v2 import StockPredictionDatasetV2
-        temp_ds = StockPredictionDatasetV2.__new__(StockPredictionDatasetV2)
-        sequence = temp_ds._df_to_sequence(window_df)
-        input_tensor = sequence.unsqueeze(0).to(device)
-        results = model.predict(input_tensor)
-    else:
-        from app.models.cnn_encoder import create_default_transforms
-        from app.services.preprocessor import KLinePreprocessor
+    from app.models.cnn_encoder import create_default_transforms
+    from app.services.preprocessor import KLinePreprocessor
 
-        _, inf_transform = create_default_transforms()
-        preprocessor = KLinePreprocessor()
-        normalized = preprocessor.normalize(window_df)
-        image = preprocessor.to_kline_image(normalized, image_size=V2_IMAGE_SIZE)
-        image_tensor = inf_transform(image).unsqueeze(0).to(device)
-        results = model.predict(image_tensor)
+    _, inf_transform = create_default_transforms()
+    preprocessor = KLinePreprocessor()
+    normalized = preprocessor.normalize(window_df)
+    image = preprocessor.to_kline_image(normalized, image_size=V2_IMAGE_SIZE)
+    image_tensor = inf_transform(image).unsqueeze(0).to(device)
+    results = model.predict(image_tensor)
 
     # Format
     predictions = {}
@@ -160,7 +143,6 @@ async def predict_stock_v2(request: PredictionRequestV2):
     return PredictionResultV2(
         symbol=request.symbol,
         market=request.market,
-        model_type=request.model_type,
         window_size=request.window_size,
         image_size=V2_IMAGE_SIZE,
         predictions=predictions,
@@ -180,12 +162,11 @@ async def compare_v2_models(
     results = {}
     for model_file in models_dir.glob("*_v2_*.pt"):
         name = model_file.stem
-        model_type = "transformer" if "transformer" in name else "cnn"
 
         try:
             req = PredictionRequestV2(
                 symbol=symbol, market=market,
-                model_type=model_type, model_variant=name,
+                model_variant=name,
             )
             pred = await predict_stock_v2(req)
             results[name] = pred.predictions

@@ -9,7 +9,7 @@
 - **K线图像生成**：将OHLCV数据渲染为标准化图像（蜡烛图、OHLC条形图、GAF编码）
 - **特征提取**：使用CNN/ResNet提取K线形态的向量表示
 - **相似性搜索**：基于FAISS向量数据库的快速形态匹配
-- **股价预测**：CNN和Transformer模型预测未来价格走势（涨跌二分类）
+- **股价预测**：CNN模型预测未来价格走势（涨跌二分类）
 
 ### 技术栈
 
@@ -45,7 +45,7 @@ k-line-analyze/
 │   ├── cnn_encoder.py            # CNN编码器 (主模型, ResNet18)
 │   ├── cnn_predictor.py          # CNN预测器 (v1, 60天/128px)
 │   ├── cnn_predictor_v2.py       # CNN预测器 (v2, 10天/256px)
-│   ├── transformer_predictor.py  # Transformer预测器
+
 │   ├── prediction_dataset.py     # 预测数据集 (v1)
 │   ├── prediction_dataset_v2.py  # 预测数据集 (v2)
 │   └── baselines.py              # 基线模型 (LSTM, ResNet1D)
@@ -63,8 +63,7 @@ k-line-analyze/
 │       ├── lightweight_cnn.py    # 轻量CNN（RTX 4060优化）
 │       ├── rnn_model.py          # RNN模型
 │       ├── multiscale_cnn.py     # 多尺度CNN
-│       ├── vision_transformer.py # ViT模型
-│       └── transformer_model.py  # Transformer变体
+
 │
 ├── backend/                       # FastAPI后端服务
 │   ├── app/
@@ -98,12 +97,7 @@ k-line-analyze/
 │   └── indices/                  # FAISS索引文件
 │
 ├── docs/                          # 文档
-│   ├── prediction-models.md      # 预测模型使用说明
-│   ├── RTX4060_TRAINING.md       # RTX 4060训练指南
-│   ├── 3CLASS_NEUTRAL.md         # 3分类（含中性）说明
-│   ├── Baseline_EXPERIMENTS.md       # Baseline实验记录
-│   ├── V2_IMPROVEMENTS.md        # V2改进文档
-│   └── V2_COMPLETE_SUMMARY.md    # V2完整总结
+│   └── (其他文档已整合到 README.md / THEORY.md / EXPERIMENTS.md)
 │
 ├── requirements.txt               # Python依赖
 └── run_experiments.bat           # Windows批处理脚本
@@ -166,20 +160,11 @@ API文档地址: http://localhost:8000/docs
 ### 运行实验
 
 ```bash
-# 运行完整Baseline实验
-python scripts/run_baseline_experiments.py
+# 分组训练 (推荐) - SAK-Net 最佳配置
+python scripts/train_grouped_h20.py --all --num-runs 3
 
-# 运行V2实验
-python scripts/run_v2_experiments.py --experiment all --num-runs 3
-
-# 训练CNN v2预测模型 (推荐)
+# CNN v2 训练
 python scripts/train_cnn_predictor_v2.py --mode all --epochs 50
-
-# 训练Transformer v2预测模型
-python scripts/train_transformer_predictor_v2.py --mode all --epochs 80
-
-# 运行优化流水线 (6阶段)
-python scripts/run_optimized_pipeline.py --stage all
 ```
 
 ---
@@ -296,25 +281,10 @@ class KLineCNNPredictorV2(nn.Module):
         self.reg_heads = nn.ModuleDict()
 ```
 
-### Transformer预测器
-
-```python
-class KLineTransformerPredictor(nn.Module):
-    """
-    输入: (batch, seq_len, n_features) - 9维特征序列
-    输出: (batch, num_classes) - 二分类概率
-    """
-    def __init__(self, n_features=9, d_model=128, nhead=8, num_encoder_layers=4):
-        self.input_proj = nn.Linear(n_features, d_model)
-        self.pos_encoder = PositionalEncoding(d_model)
-        self.transformer_encoder = nn.TransformerEncoder(...)
-```
-
 ### 损失函数
 
 - **TripletLoss**: 自监督学习的三元组损失
 - **CombinedLoss**: Triplet + Prediction 多任务损失
-- **TransformerPredictionLoss**: 分类 + 回归联合损失
 - **CrossEntropyLoss**: 分类任务
 
 ---
@@ -348,7 +318,7 @@ curl -X POST http://localhost:8000/api/v1/prediction/v2/predict \
 {
   "symbol": "AAPL",
   "market": "us",
-  "model_type": "transformer",
+
   "window_size": 10,
   "image_size": 256,
   "predictions": {

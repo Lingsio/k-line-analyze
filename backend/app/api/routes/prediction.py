@@ -1,5 +1,5 @@
 """
-Prediction API routes for CNN and Transformer stock predictors.
+Prediction API routes for CNN stock predictors.
 
 Provides endpoints for:
 - Single stock prediction using trained models
@@ -21,7 +21,6 @@ router = APIRouter(prefix="/prediction", tags=["Prediction"])
 class PredictionRequest(BaseModel):
     symbol: str
     market: str = "us"
-    model_type: str = "transformer"  # "transformer" or "cnn"
     model_variant: str = "universal"  # "universal" or stock-specific name
     window_size: int = 60
 
@@ -29,7 +28,6 @@ class PredictionRequest(BaseModel):
 class PredictionResult(BaseModel):
     symbol: str
     market: str
-    model_type: str
     predictions: Dict  # {horizon: {class_name, probability, predicted_return}}
 
 
@@ -49,12 +47,11 @@ async def list_available_models():
             with open(config_path) as cf:
                 config = json.load(cf)
 
-        model_type = "transformer" if "transformer" in name else "cnn"
         variant = "universal" if "universal" in name else name
 
         models.append({
             "name": name,
-            "type": model_type,
+            "type": "cnn",
             "variant": variant,
             "file": str(f),
             "config": config,
@@ -68,8 +65,7 @@ async def predict_stock(request: PredictionRequest):
     """
     Predict future price movement for a stock.
 
-    Uses the specified model type (CNN or Transformer) and variant
-    (universal or stock-specific) to make predictions.
+    Uses the specified model variant (universal or stock-specific) to make predictions.
     """
     from app.services.data_fetcher import DataFetcher
     from datetime import datetime, timedelta
@@ -77,31 +73,27 @@ async def predict_stock(request: PredictionRequest):
     # Determine model path
     models_dir = settings.MODELS_DIR / "predictors"
     if request.model_variant == "universal":
-        model_file = f"{request.model_type}_predictor_universal.pt"
+        model_file = "cnn_predictor_universal.pt"
     else:
-        model_file = f"{request.model_type}_predictor_{request.market}_{request.symbol}.pt"
+        model_file = f"cnn_predictor_{request.market}_{request.symbol}.pt"
 
     model_path = models_dir / model_file
     if not model_path.exists():
         # Fallback to universal
-        model_file = f"{request.model_type}_predictor_universal.pt"
+        model_file = "cnn_predictor_universal.pt"
         model_path = models_dir / model_file
         if not model_path.exists():
             raise HTTPException(
                 status_code=404,
                 detail=f"No trained model found: {model_file}. "
-                       f"Train a model first with scripts/train_{request.model_type}_predictor.py",
+                       f"Train a model first with scripts/train_cnn_predictor.py",
             )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Load model
-    if request.model_type == "transformer":
-        from app.models.transformer_predictor import KLineTransformerPredictor
-        model = KLineTransformerPredictor.load(str(model_path), device=device)
-    else:
-        from app.models.cnn_predictor import KLineCNNPredictor
-        model = KLineCNNPredictor.load(str(model_path), device=device)
+    from app.models.cnn_predictor import KLineCNNPredictor
+    model = KLineCNNPredictor.load(str(model_path), device=device)
 
     model = model.to(device)
     model.eval()
@@ -130,23 +122,16 @@ async def predict_stock(request: PredictionRequest):
     # Use most recent window
     window_df = df.iloc[-request.window_size:]
 
-    # Prepare input based on model type
-    if request.model_type == "transformer":
-        from app.models.prediction_dataset import StockPredictionDataset
-        temp_ds = StockPredictionDataset.__new__(StockPredictionDataset)
-        sequence = temp_ds._df_to_sequence(window_df)
-        input_tensor = sequence.unsqueeze(0).to(device)
-        results = model.predict(input_tensor)
-    else:
-        from app.models.cnn_encoder import create_default_transforms
-        from app.services.preprocessor import KLinePreprocessor
+    # Prepare input
+    from app.models.cnn_encoder import create_default_transforms
+    from app.services.preprocessor import KLinePreprocessor
 
-        _, inf_transform = create_default_transforms()
-        preprocessor = KLinePreprocessor()
-        normalized = preprocessor.normalize(window_df)
-        image = preprocessor.to_kline_image(normalized, image_size=128)
-        image_tensor = inf_transform(image).unsqueeze(0).to(device)
-        results = model.predict(image_tensor)
+    _, inf_transform = create_default_transforms()
+    preprocessor = KLinePreprocessor()
+    normalized = preprocessor.normalize(window_df)
+    image = preprocessor.to_kline_image(normalized, image_size=128)
+    image_tensor = inf_transform(image).unsqueeze(0).to(device)
+    results = model.predict(image_tensor)
 
     # Format predictions
     predictions = {}
@@ -165,7 +150,6 @@ async def predict_stock(request: PredictionRequest):
     return PredictionResult(
         symbol=request.symbol,
         market=request.market,
-        model_type=request.model_type,
         predictions=predictions,
     )
 
@@ -179,8 +163,7 @@ async def compare_models(
     """
     Compare predictions from all available models for a given stock.
 
-    Returns predictions from both CNN and Transformer models
-    (universal + stock-specific if available).
+    Returns predictions from CNN models (universal + stock-specific if available).
     """
     models_dir = settings.MODELS_DIR / "predictors"
     if not models_dir.exists():
@@ -189,13 +172,11 @@ async def compare_models(
     results = {}
     for model_file in models_dir.glob("*.pt"):
         name = model_file.stem
-        model_type = "transformer" if "transformer" in name else "cnn"
 
         try:
             request = PredictionRequest(
                 symbol=symbol,
                 market=market,
-                model_type=model_type,
                 model_variant=name,
                 window_size=window_size,
             )
