@@ -126,29 +126,29 @@ CSV文件包含以下列：
 
 | 文档 | 内容 |
 |------|------|
-| `THEORY.md` | 完整理论框架与数学原理 |
-| `METHOD_IMAGE_ENCODING.md` | 图像编码方法 (OHLC/GAF/Hybrid) |
-| `METHOD_MULTISCALE_FUSION.md` | 多尺度 CNN 融合方法 |
-| `METHOD_OPTIMIZED_PIPELINE.md` | 6 阶段优化流水线指南 |
-| `docs/METHOD_3CLASS_CLASSIFICATION.md` | 三分类方法 (涨/平/跌) |
-| `docs/METHOD_RTX4060_TRAINING.md` | RTX 4060 训练指南 |
+| [THEORY.md](./THEORY.md) | 完整理论框架与数学原理 |
+| [METHOD_IMAGE_ENCODING.md](./METHOD_IMAGE_ENCODING.md) | 图像编码方法 (OHLC/GAF/Hybrid) |
+| [METHOD_MULTISCALE_FUSION.md](./METHOD_MULTISCALE_FUSION.md) | 多尺度 CNN 融合方法 |
+| [METHOD_OPTIMIZED_PIPELINE.md](./METHOD_OPTIMIZED_PIPELINE.md) | 6 阶段优化流水线指南 |
+| [docs/METHOD_3CLASS_CLASSIFICATION.md](./docs/METHOD_3CLASS_CLASSIFICATION.md) | 三分类方法 (涨/平/跌) |
+| [docs/METHOD_RTX4060_TRAINING.md](./docs/METHOD_RTX4060_TRAINING.md) | RTX 4060 训练指南 |
 
 ### 实验结果 (RESULTS_)
 
 | 文档 | 内容 |
 |------|------|
-| `RESULTS_BASELINE_EXPERIMENTS.md` | 基线实验对比 (CNN/LSTM/ResNet1D) |
-| `docs/RESULTS_EXPERIMENTS_COMPARISON.md` | 全量实验对比总结 |
-| `docs/RESULTS_SAK_NET_2026-02-11.md` | **SAK-Net 实验 (最新成果 57.81%)** |
-| `docs/RESULTS_GROUPED_TRAINING.md` | 分组训练方法详解 |
-| `docs/RESULTS_PER_STOCK_TRAINING.md` | 单股票训练实验 |
+| [RESULTS_BASELINE_EXPERIMENTS.md](./RESULTS_BASELINE_EXPERIMENTS.md) | 基线实验对比 (CNN/LSTM/ResNet1D) |
+| [docs/RESULTS_EXPERIMENTS_COMPARISON.md](./docs/RESULTS_EXPERIMENTS_COMPARISON.md) | 全量实验对比总结 |
+| [docs/RESULTS_SAK_NET_2026-02-11.md](./docs/RESULTS_SAK_NET_2026-02-11.md) | **SAK-Net 实验 (最新成果 57.81%)** |
+| [docs/RESULTS_GROUPED_TRAINING.md](./docs/RESULTS_GROUPED_TRAINING.md) | 分组训练方法详解 |
+| [docs/RESULTS_PER_STOCK_TRAINING.md](./docs/RESULTS_PER_STOCK_TRAINING.md) | 单股票训练实验 |
 
 ### 用户指南
 
 | 文档 | 内容 |
 |------|------|
-| `README_PROJECT.md` | 完整项目介绍与快速开始 |
-| `docs/USER_GUIDE_PREDICTION_MODELS.md` | 预测模型 API 使用说明 |
+| [README_PROJECT.md](./README_PROJECT.md) | 完整项目介绍与快速开始 |
+| [docs/USER_GUIDE_PREDICTION_MODELS.md](./docs/USER_GUIDE_PREDICTION_MODELS.md) | 预测模型 API 使用说明 |
 
 ## License
 
