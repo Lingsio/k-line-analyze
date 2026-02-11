@@ -1,0 +1,13 @@
+{
+  "download_date": "2026-01-26T09:58:21.575940",
+  "date_range": {
+    "start": "2021-01-01",
+    "end": "2026-01-26"
+  },
+  "markets": [
+    "us",
+    "cn"
+  ],
+  "total_symbols": 56,
+  "successful_downloads": 44
+}

@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd c:/Users/ian28/Desktop/k-line-photo ; python -u src/experiments/run_eccv_experiments\\.py --exp main --num_runs 1 --limit 5$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

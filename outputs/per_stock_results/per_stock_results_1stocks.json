@@ -1,0 +1,108 @@
+{
+  "config": {
+    "window_size": 60,
+    "prediction_horizon": 5,
+    "img_size": [
+      128,
+      128
+    ],
+    "epochs": 15,
+    "batch_size": 32,
+    "lr": 0.0002,
+    "weight_decay": 0.0001,
+    "patience": 3,
+    "num_runs": 1,
+    "norm_method": "minmax",
+    "use_clahe": false,
+    "output_channels": "rgb",
+    "augment_prob": 0.2
+  },
+  "num_stocks": 1,
+  "num_successful": 1,
+  "num_failed": 0,
+  "overall_avg": {
+    "accuracy": 0.5595611285266457,
+    "f1": 0.4081344513197717,
+    "precision": 0.7547714169872334,
+    "recall": 0.5595611285266457,
+    "auc": 0.4635604592217087
+  },
+  "overall_std": {
+    "accuracy": 0.0,
+    "f1": 0.0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "auc": 0.0
+  },
+  "individual_results": [
+    {
+      "stock_name": "300760.SZ",
+      "stock_file": "/workspace/data/raw/300760.SZ.csv",
+      "success": true,
+      "num_successful_runs": 1,
+      "avg_metrics": {
+        "accuracy": 0.5595611285266457,
+        "f1": 0.4081344513197717,
+        "precision": 0.7547714169872334,
+        "recall": 0.5595611285266457,
+        "auc": 0.4635604592217087
+      },
+      "runs": [
+        {
+          "stock_name": "300760.SZ",
+          "stock_file": "/workspace/data/raw/300760.SZ.csv",
+          "seed": 42,
+          "success": true,
+          "error": null,
+          "data_size": {
+            "train": 2652,
+            "val": 637,
+            "test": 638
+          },
+          "test_metrics": {
+            "accuracy": 0.5595611285266457,
+            "f1": 0.4081344513197717,
+            "precision": 0.7547714169872334,
+            "recall": 0.5595611285266457,
+            "auc": 0.4635604592217087
+          },
+          "best_val_f1": 0.39328357182307644,
+          "epochs_trained": 4,
+          "history": [
+            {
+              "epoch": 1,
+              "train_loss": 0.7069077477397689,
+              "train_acc": 0.5211161387631976,
+              "val_acc": 0.4772370486656201,
+              "val_f1": 0.39328357182307644
+            },
+            {
+              "epoch": 2,
+              "train_loss": 0.6742814484849033,
+              "train_acc": 0.5889894419306184,
+              "val_acc": 0.47566718995290425,
+              "val_f1": 0.3284540156553874
+            },
+            {
+              "epoch": 3,
+              "train_loss": 0.6290349414549679,
+              "train_acc": 0.6391402714932126,
+              "val_acc": 0.4803767660910518,
+              "val_f1": 0.3664671256876121
+            },
+            {
+              "epoch": 4,
+              "train_loss": 0.5744745752897608,
+              "train_acc": 0.701734539969834,
+              "val_acc": 0.4599686028257457,
+              "val_f1": 0.2925845688239264
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "start_time": "2026-02-07T06:01:21.305801",
+  "end_time": "2026-02-07T06:02:26.937108",
+  "total_time_seconds": 65.631309
+}

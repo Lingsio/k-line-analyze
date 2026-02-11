@@ -1,0 +1,45 @@
+{
+  "groups": {
+    "Tech_Semiconductors": {
+      "name": "科技-半导体",
+      "stocks": ["NVDA", "AMD", "INTC", "QCOM", "TXN", "AVGO"],
+      "description": "半导体芯片制造与设计"
+    },
+    "Tech_Software": {
+      "name": "科技-软件与互联网",
+      "stocks": ["MSFT", "AAPL", "GOOGL", "META", "AMZN", "NFLX", "ORCL", "ADBE", "CRM", "TSLA", "NOW", "SNOW", "IBM", "PYPL"],
+      "description": "软件、云计算、互联网平台、电动车、支付"
+    },
+    "Financials": {
+      "name": "金融",
+      "stocks": ["JPM", "WFC", "GS", "MS", "BLK", "V", "MA", "AXP", "BAC"],
+      "description": "银行、投资、支付、保险"
+    },
+    "Healthcare": {
+      "name": "医疗保健",
+      "stocks": ["LLY", "UNH", "JNJ", "MRK", "PFE", "ABBV", "TMO", "ABT", "BMY", "AMGN"],
+      "description": "制药、医疗器械、健康保险"
+    },
+    "Consumer": {
+      "name": "消费品与零售",
+      "stocks": ["WMT", "COST", "HD", "MCD", "SBUX", "PG", "KO", "PEP", "DIS", "NKE"],
+      "description": "零售、餐饮、消费品、娱乐"
+    },
+    "Industrials_Energy": {
+      "name": "工业与能源",
+      "stocks": ["BA", "GE", "HON", "CAT", "CVX", "XOM", "COP", "CSCO"],
+      "description": "航空航天、工业、能源、通信设备"
+    }
+  },
+  "statistics": {
+    "total_stocks": 57,
+    "num_groups": 6,
+    "avg_stocks_per_group": 9.5
+  },
+  "notes": [
+    "分组基于行业板块和业务相似性",
+    "每组包含具有相似市场动态的股票",
+    "仅包含实际存在于数据集中的57个美股",
+    "预期每组约5000-10000个训练样本"
+  ]
+}

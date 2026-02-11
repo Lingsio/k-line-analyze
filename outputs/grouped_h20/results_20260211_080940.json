@@ -1,0 +1,380 @@
+{
+  "config": {
+    "arch": "resnet18",
+    "pretrained": true,
+    "dropout": 0.3,
+    "input_channels": 3,
+    "window_size": 20,
+    "prediction_horizon": 5,
+    "img_size": [
+      128,
+      128
+    ],
+    "chart_type": "ohlc",
+    "norm_method": "robust",
+    "use_clahe": true,
+    "num_classes": 2,
+    "label_threshold": "dynamic",
+    "batch_size": 128,
+    "num_workers": 8,
+    "epochs": 50,
+    "lr": 0.0004,
+    "weight_decay": 0.0001,
+    "patience": 7,
+    "label_smoothing": 0.1
+  },
+  "results": {
+    "Tech_Semiconductors": {
+      "sector_info": {
+        "name": "\u79d1\u6280-\u534a\u5bfc\u4f53",
+        "stocks": [
+          "NVDA",
+          "AMD",
+          "INTC",
+          "QCOM",
+          "TXN",
+          "AVGO"
+        ],
+        "description": "\u534a\u5bfc\u4f53\u82af\u7247\u5236\u9020\u4e0e\u8bbe\u8ba1"
+      },
+      "runs": [
+        {
+          "seed": 42,
+          "test_metrics": {
+            "loss": 1.0535376497677393,
+            "accuracy": 0.5988095238095238,
+            "f1": 0.5717995337669952,
+            "precision": 0.5626993132718323,
+            "recall": 0.5988095238095238,
+            "auc": 0.5247153524997026
+          },
+          "best_val_f1": 0.5727270796056635,
+          "epochs": 18
+        },
+        {
+          "seed": 142,
+          "test_metrics": {
+            "loss": 0.7208110434668404,
+            "accuracy": 0.5422619047619047,
+            "f1": 0.552594103709909,
+            "precision": 0.5755265308512194,
+            "recall": 0.5422619047619047,
+            "auc": 0.5471968715377538
+          },
+          "best_val_f1": 0.5765122446036054,
+          "epochs": 8
+        }
+      ],
+      "best_run": {
+        "seed": 42,
+        "test_metrics": {
+          "loss": 1.0535376497677393,
+          "accuracy": 0.5988095238095238,
+          "f1": 0.5717995337669952,
+          "precision": 0.5626993132718323,
+          "recall": 0.5988095238095238,
+          "auc": 0.5247153524997026
+        },
+        "best_val_f1": 0.5727270796056635,
+        "epochs": 18
+      }
+    },
+    "Tech_Software": {
+      "sector_info": {
+        "name": "\u79d1\u6280-\u8f6f\u4ef6\u4e0e\u4e92\u8054\u7f51",
+        "stocks": [
+          "MSFT",
+          "AAPL",
+          "GOOGL",
+          "META",
+          "AMZN",
+          "NFLX",
+          "ORCL",
+          "ADBE",
+          "CRM",
+          "TSLA",
+          "NOW",
+          "SNOW",
+          "IBM",
+          "PYPL"
+        ],
+        "description": "\u8f6f\u4ef6\u3001\u4e91\u8ba1\u7b97\u3001\u4e92\u8054\u7f51\u5e73\u53f0\u3001\u7535\u52a8\u8f66\u3001\u652f\u4ed8"
+      },
+      "runs": [
+        {
+          "seed": 42,
+          "test_metrics": {
+            "loss": 0.7695898924555097,
+            "accuracy": 0.5721528861154446,
+            "f1": 0.5828721899838816,
+            "precision": 0.5976859823389963,
+            "recall": 0.5721528861154446,
+            "auc": 0.5165128090321675
+          },
+          "best_val_f1": 0.5835711946269166,
+          "epochs": 11
+        },
+        {
+          "seed": 142,
+          "test_metrics": {
+            "loss": 0.8049859234264919,
+            "accuracy": 0.5592823712948518,
+            "f1": 0.5715664412148591,
+            "precision": 0.5891506498301363,
+            "recall": 0.5592823712948518,
+            "auc": 0.5228247764199092
+          },
+          "best_val_f1": 0.5634348548344815,
+          "epochs": 13
+        }
+      ],
+      "best_run": {
+        "seed": 42,
+        "test_metrics": {
+          "loss": 0.7695898924555097,
+          "accuracy": 0.5721528861154446,
+          "f1": 0.5828721899838816,
+          "precision": 0.5976859823389963,
+          "recall": 0.5721528861154446,
+          "auc": 0.5165128090321675
+        },
+        "best_val_f1": 0.5835711946269166,
+        "epochs": 11
+      }
+    },
+    "Financials": {
+      "sector_info": {
+        "name": "\u91d1\u878d",
+        "stocks": [
+          "JPM",
+          "WFC",
+          "GS",
+          "MS",
+          "BLK",
+          "V",
+          "MA",
+          "AXP",
+          "BAC"
+        ],
+        "description": "\u94f6\u884c\u3001\u6295\u8d44\u3001\u652f\u4ed8\u3001\u4fdd\u9669"
+      },
+      "runs": [
+        {
+          "seed": 42,
+          "test_metrics": {
+            "loss": 0.9576836489140987,
+            "accuracy": 0.558974358974359,
+            "f1": 0.5459207459207459,
+            "precision": 0.5400052921321483,
+            "recall": 0.558974358974359,
+            "auc": 0.5124609113245477
+          },
+          "best_val_f1": 0.5796593576979406,
+          "epochs": 12
+        },
+        {
+          "seed": 142,
+          "test_metrics": {
+            "loss": 0.9840850234031677,
+            "accuracy": 0.5517948717948717,
+            "f1": 0.5449753287462118,
+            "precision": 0.5405847920748489,
+            "recall": 0.5517948717948717,
+            "auc": 0.5210587446951083
+          },
+          "best_val_f1": 0.5917625169427486,
+          "epochs": 16
+        }
+      ],
+      "best_run": {
+        "seed": 42,
+        "test_metrics": {
+          "loss": 0.9576836489140987,
+          "accuracy": 0.558974358974359,
+          "f1": 0.5459207459207459,
+          "precision": 0.5400052921321483,
+          "recall": 0.558974358974359,
+          "auc": 0.5124609113245477
+        },
+        "best_val_f1": 0.5796593576979406,
+        "epochs": 12
+      }
+    },
+    "Healthcare": {
+      "sector_info": {
+        "name": "\u533b\u7597\u4fdd\u5065",
+        "stocks": [
+          "LLY",
+          "UNH",
+          "JNJ",
+          "MRK",
+          "PFE",
+          "ABBV",
+          "TMO",
+          "ABT",
+          "BMY",
+          "AMGN"
+        ],
+        "description": "\u5236\u836f\u3001\u533b\u7597\u5668\u68b0\u3001\u5065\u5eb7\u4fdd\u9669"
+      },
+      "runs": [
+        {
+          "seed": 42,
+          "test_metrics": {
+            "loss": 0.6874029579616728,
+            "accuracy": 0.5353810264385692,
+            "f1": 0.5246266889976487,
+            "precision": 0.5180160839110358,
+            "recall": 0.5353810264385692,
+            "auc": 0.4789918846833423
+          },
+          "best_val_f1": 0.6074750381508397,
+          "epochs": 8
+        },
+        {
+          "seed": 142,
+          "test_metrics": {
+            "loss": 0.6861391720317659,
+            "accuracy": 0.5279937791601866,
+            "f1": 0.5246709943655444,
+            "precision": 0.5218814940468784,
+            "recall": 0.5279937791601866,
+            "auc": 0.48800293879493883
+          },
+          "best_val_f1": 0.6088162943811722,
+          "epochs": 9
+        }
+      ],
+      "best_run": {
+        "seed": 42,
+        "test_metrics": {
+          "loss": 0.6874029579616728,
+          "accuracy": 0.5353810264385692,
+          "f1": 0.5246266889976487,
+          "precision": 0.5180160839110358,
+          "recall": 0.5353810264385692,
+          "auc": 0.4789918846833423
+        },
+        "best_val_f1": 0.6074750381508397,
+        "epochs": 8
+      }
+    },
+    "Consumer": {
+      "sector_info": {
+        "name": "\u6d88\u8d39\u54c1\u4e0e\u96f6\u552e",
+        "stocks": [
+          "WMT",
+          "COST",
+          "HD",
+          "MCD",
+          "SBUX",
+          "PG",
+          "KO",
+          "PEP",
+          "DIS",
+          "NKE"
+        ],
+        "description": "\u96f6\u552e\u3001\u9910\u996e\u3001\u6d88\u8d39\u54c1\u3001\u5a31\u4e50"
+      },
+      "runs": [
+        {
+          "seed": 42,
+          "test_metrics": {
+            "loss": 0.6812082905518381,
+            "accuracy": 0.6036689419795221,
+            "f1": 0.5916484821355372,
+            "precision": 0.5844483672012335,
+            "recall": 0.6036689419795221,
+            "auc": 0.5312911865645349
+          },
+          "best_val_f1": 0.5683314532773479,
+          "epochs": 10
+        },
+        {
+          "seed": 142,
+          "test_metrics": {
+            "loss": 0.675424083283073,
+            "accuracy": 0.5699658703071673,
+            "f1": 0.5676980269357698,
+            "precision": 0.5656239354797654,
+            "recall": 0.5699658703071673,
+            "auc": 0.5317356752312973
+          },
+          "best_val_f1": 0.565420614669305,
+          "epochs": 8
+        }
+      ],
+      "best_run": {
+        "seed": 42,
+        "test_metrics": {
+          "loss": 0.6812082905518381,
+          "accuracy": 0.6036689419795221,
+          "f1": 0.5916484821355372,
+          "precision": 0.5844483672012335,
+          "recall": 0.6036689419795221,
+          "auc": 0.5312911865645349
+        },
+        "best_val_f1": 0.5683314532773479,
+        "epochs": 10
+      }
+    },
+    "Industrials_Energy": {
+      "sector_info": {
+        "name": "\u5de5\u4e1a\u4e0e\u80fd\u6e90",
+        "stocks": [
+          "BA",
+          "GE",
+          "HON",
+          "CAT",
+          "CVX",
+          "XOM",
+          "COP",
+          "CSCO"
+        ],
+        "description": "\u822a\u7a7a\u822a\u5929\u3001\u5de5\u4e1a\u3001\u80fd\u6e90\u3001\u901a\u4fe1\u8bbe\u5907"
+      },
+      "runs": [
+        {
+          "seed": 42,
+          "test_metrics": {
+            "loss": 0.7380321513522755,
+            "accuracy": 0.5993975903614458,
+            "f1": 0.5173694779116467,
+            "precision": 0.5425903614457831,
+            "recall": 0.5993975903614458,
+            "auc": 0.4877235562193628
+          },
+          "best_val_f1": 0.5909519987481007,
+          "epochs": 9
+        },
+        {
+          "seed": 142,
+          "test_metrics": {
+            "loss": 0.8651663931933317,
+            "accuracy": 0.5368975903614458,
+            "f1": 0.5413796155020157,
+            "precision": 0.5488326219795087,
+            "recall": 0.5368975903614458,
+            "auc": 0.5476600796568627
+          },
+          "best_val_f1": 0.5571873418278647,
+          "epochs": 13
+        }
+      ],
+      "best_run": {
+        "seed": 42,
+        "test_metrics": {
+          "loss": 0.7380321513522755,
+          "accuracy": 0.5993975903614458,
+          "f1": 0.5173694779116467,
+          "precision": 0.5425903614457831,
+          "recall": 0.5993975903614458,
+          "auc": 0.4877235562193628
+        },
+        "best_val_f1": 0.5909519987481007,
+        "epochs": 9
+      }
+    }
+  },
+  "avg_accuracy": 0.578064054613144
+}

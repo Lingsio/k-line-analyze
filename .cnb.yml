@@ -1,0 +1,12 @@
+$:
+  vscode:
+    - docker:
+        image: docker.cnb.cool/wxai-tool/index-tts-base:latest
+      runner:
+        tags: cnb:arch:amd64:gpu:H20
+      services:
+        - vscode
+        - docker
+      stages:
+        - name: start
+          script: echo 'start'

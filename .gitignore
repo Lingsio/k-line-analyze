@@ -1,0 +1,21 @@
+# å¿½ç•¥?¯å??˜é??‡ä»¶
+.env
+.agent
+.claude
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+
+# Trained models and indices are now tracked via Git LFS
+
+# Python cache
+__pycache__/
+*.pyc
+
+# System files
+.DS_Store
+Thumbs.db
+nul
+

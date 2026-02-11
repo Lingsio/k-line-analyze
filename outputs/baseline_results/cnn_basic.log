@@ -1,0 +1,84 @@
+============================================================
+CNN-Basic Experiment
+============================================================
+Start: 2026-02-06 09:20:14.049152, Device: cuda
+
+--- Run 1/3 ---
+  [seed=42] Loading data...
+  [seed=42] Data: train=100935, val=23427, test=23442
+  [seed=42] Compiled
+  [seed=42] Training...
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+  [seed=42] Epoch 1/20: loss=0.6968, acc=0.5074, val_acc=0.4962, val_f1=0.4320
+  [seed=42] Epoch 2/20: loss=0.6939, acc=0.5174, val_acc=0.5137, val_f1=0.5127
+  [seed=42] Epoch 3/20: loss=0.6925, acc=0.5233, val_acc=0.5243, val_f1=0.5239
+  [seed=42] Epoch 4/20: loss=0.6906, acc=0.5322, val_acc=0.5109, val_f1=0.3989
+  [seed=42] Epoch 5/20: loss=0.6880, acc=0.5417, val_acc=0.5092, val_f1=0.5009
+  [seed=42] Epoch 6/20: loss=0.6850, acc=0.5514, val_acc=0.5171, val_f1=0.4719
+  [seed=42] Epoch 7/20: loss=0.6797, acc=0.5660, val_acc=0.5113, val_f1=0.4802
+  [seed=42] Epoch 8/20: loss=0.6709, acc=0.5842, val_acc=0.5074, val_f1=0.4023
+  [seed=42] Early stop
+  [seed=42] Test: acc=0.5095, f1=0.5075, auc=0.5128
+
+--- Run 2/3 ---
+  [seed=142] Loading data...
+  [seed=142] Data: train=100935, val=23427, test=23442
+  [seed=142] Compiled
+  [seed=142] Training...
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+  [seed=142] Epoch 1/20: loss=0.6964, acc=0.5075, val_acc=0.4938, val_f1=0.3288
+  [seed=142] Epoch 2/20: loss=0.6933, acc=0.5190, val_acc=0.5065, val_f1=0.3743
+  [seed=142] Epoch 3/20: loss=0.6922, acc=0.5237, val_acc=0.5059, val_f1=0.3747
+  [seed=142] Epoch 4/20: loss=0.6901, acc=0.5350, val_acc=0.5098, val_f1=0.5092
+  [seed=142] Epoch 5/20: loss=0.6870, acc=0.5462, val_acc=0.5063, val_f1=0.4408
+  [seed=142] Epoch 6/20: loss=0.6833, acc=0.5583, val_acc=0.5078, val_f1=0.4414
+  [seed=142] Epoch 7/20: loss=0.6764, acc=0.5740, val_acc=0.5137, val_f1=0.4667
+  [seed=142] Epoch 8/20: loss=0.6645, acc=0.5973, val_acc=0.5096, val_f1=0.5090
+  [seed=142] Epoch 9/20: loss=0.6431, acc=0.6279, val_acc=0.5124, val_f1=0.5086
+  [seed=142] Early stop
+  [seed=142] Test: acc=0.5096, f1=0.5070, auc=0.5103
+
+--- Run 3/3 ---
+  [seed=242] Loading data...
+  [seed=242] Data: train=100935, val=23427, test=23442
+  [seed=242] Compiled
+  [seed=242] Training...
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+/workspace/src/data/dataset.py:243: RuntimeWarning: invalid value encountered in log
+  log_rets = np.log((prices[1:] + epsilon) / (prices[:-1] + epsilon))
+  [seed=242] Epoch 1/20: loss=0.6979, acc=0.5056, val_acc=0.5037, val_f1=0.4996
+  [seed=242] Epoch 2/20: loss=0.6944, acc=0.5087, val_acc=0.4861, val_f1=0.4138
+  [seed=242] Epoch 3/20: loss=0.6944, acc=0.5096, val_acc=0.5072, val_f1=0.3430
+  [seed=242] Epoch 4/20: loss=0.6931, acc=0.5158, val_acc=0.5202, val_f1=0.5187
+  [seed=242] Epoch 5/20: loss=0.6920, acc=0.5217, val_acc=0.4954, val_f1=0.4954
+  [seed=242] Epoch 6/20: loss=0.6905, acc=0.5313, val_acc=0.4976, val_f1=0.3977
+  [seed=242] Epoch 7/20: loss=0.6883, acc=0.5403, val_acc=0.4967, val_f1=0.3757
+  [seed=242] Epoch 8/20: loss=0.6845, acc=0.5541, val_acc=0.4994, val_f1=0.4899
+  [seed=242] Epoch 9/20: loss=0.6772, acc=0.5728, val_acc=0.5003, val_f1=0.4791
+  [seed=242] Early stop
+  [seed=242] Test: acc=0.5070, f1=0.5049, auc=0.5087
+
+=== CNN-Basic Summary ===
+Accuracy: 0.5087 ± 0.0012
+F1: 0.5065 ± 0.0011
+AUC: 0.5106 ± 0.0017
+End: 2026-02-06 10:10:56.602929

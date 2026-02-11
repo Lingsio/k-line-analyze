@@ -1,0 +1,133 @@
+======================================================================
+Grouped Training for H20 - 54% Accuracy Config
+======================================================================
+Device: cuda
+Sectors: ['Tech_Semiconductors', 'Tech_Software', 'Financials', 'Healthcare', 'Consumer', 'Industrials_Energy']
+Runs per sector: 2
+Config: resnet18, 2-class, batch=128
+GPU: NVIDIA H20
+VRAM: 102.1 GB
+
+======================================================================
+Sector: Tech_Semiconductors (科技-半导体)
+Stocks: ['NVDA', 'AMD', 'INTC', 'QCOM', 'TXN', 'AVGO']
+======================================================================
+
+  Run 1/2 (seed=42)
+  torch.compile: enabled
+    Accuracy: 0.5988, F1: 0.5718, AUC: 0.5247
+
+  Run 2/2 (seed=142)
+  torch.compile: enabled
+    Accuracy: 0.5423, F1: 0.5526, AUC: 0.5472
+
+  Best run (seed=42):
+    Accuracy: 0.5988 (59.88%)
+    F1: 0.5718
+    AUC: 0.5247
+
+======================================================================
+Sector: Tech_Software (科技-软件与互联网)
+Stocks: ['MSFT', 'AAPL', 'GOOGL', 'META', 'AMZN', 'NFLX', 'ORCL', 'ADBE', 'CRM', 'TSLA', 'NOW', 'SNOW', 'IBM', 'PYPL']
+======================================================================
+
+  Run 1/2 (seed=42)
+  torch.compile: enabled
+    Accuracy: 0.5722, F1: 0.5829, AUC: 0.5165
+
+  Run 2/2 (seed=142)
+  torch.compile: enabled
+    Accuracy: 0.5593, F1: 0.5716, AUC: 0.5228
+
+  Best run (seed=42):
+    Accuracy: 0.5722 (57.22%)
+    F1: 0.5829
+    AUC: 0.5165
+
+======================================================================
+Sector: Financials (金融)
+Stocks: ['JPM', 'WFC', 'GS', 'MS', 'BLK', 'V', 'MA', 'AXP', 'BAC']
+======================================================================
+
+  Run 1/2 (seed=42)
+  torch.compile: enabled
+    Accuracy: 0.5590, F1: 0.5459, AUC: 0.5125
+
+  Run 2/2 (seed=142)
+  torch.compile: enabled
+    Accuracy: 0.5518, F1: 0.5450, AUC: 0.5211
+
+  Best run (seed=42):
+    Accuracy: 0.5590 (55.90%)
+    F1: 0.5459
+    AUC: 0.5125
+
+======================================================================
+Sector: Healthcare (医疗保健)
+Stocks: ['LLY', 'UNH', 'JNJ', 'MRK', 'PFE', 'ABBV', 'TMO', 'ABT', 'BMY', 'AMGN']
+======================================================================
+
+  Run 1/2 (seed=42)
+  torch.compile: enabled
+    Accuracy: 0.5354, F1: 0.5246, AUC: 0.4790
+
+  Run 2/2 (seed=142)
+  torch.compile: enabled
+    Accuracy: 0.5280, F1: 0.5247, AUC: 0.4880
+
+  Best run (seed=42):
+    Accuracy: 0.5354 (53.54%)
+    F1: 0.5246
+    AUC: 0.4790
+
+======================================================================
+Sector: Consumer (消费品与零售)
+Stocks: ['WMT', 'COST', 'HD', 'MCD', 'SBUX', 'PG', 'KO', 'PEP', 'DIS', 'NKE']
+======================================================================
+
+  Run 1/2 (seed=42)
+  torch.compile: enabled
+    Accuracy: 0.6037, F1: 0.5916, AUC: 0.5313
+
+  Run 2/2 (seed=142)
+  torch.compile: enabled
+    Accuracy: 0.5700, F1: 0.5677, AUC: 0.5317
+
+  Best run (seed=42):
+    Accuracy: 0.6037 (60.37%)
+    F1: 0.5916
+    AUC: 0.5313
+
+======================================================================
+Sector: Industrials_Energy (工业与能源)
+Stocks: ['BA', 'GE', 'HON', 'CAT', 'CVX', 'XOM', 'COP', 'CSCO']
+======================================================================
+
+  Run 1/2 (seed=42)
+  torch.compile: enabled
+    Accuracy: 0.5994, F1: 0.5174, AUC: 0.4877
+
+  Run 2/2 (seed=142)
+  torch.compile: enabled
+    Accuracy: 0.5369, F1: 0.5414, AUC: 0.5477
+
+  Best run (seed=42):
+    Accuracy: 0.5994 (59.94%)
+    F1: 0.5174
+    AUC: 0.4877
+
+======================================================================
+FINAL SUMMARY
+======================================================================
+Sector                      Best Acc    Best F1     Seed
+----------------------------------------------------------------------
+Tech_Semiconductors           0.5988     0.5718       42
+Tech_Software                 0.5722     0.5829       42
+Financials                    0.5590     0.5459       42
+Healthcare                    0.5354     0.5246       42
+Consumer                      0.6037     0.5916       42
+Industrials_Energy            0.5994     0.5174       42
+----------------------------------------------------------------------
+AVERAGE                       0.5781
+
+Results saved to: /workspace/outputs/grouped_h20/results_20260211_080940.json
