@@ -32,7 +32,9 @@ class StockDataset(Dataset):
                  # Quantile-based flat-sample filtering (TRAIN ONLY to avoid data leakage)
                  quantile_filter=None,
                  # Additional training filter for 3-class (filter extreme neutrals during training)
-                 train_filter_threshold=None):
+                 train_filter_threshold=None,
+                 # Ticker filter for sector-based training (load only specified tickers)
+                 tickers_filter=None):
         """
         Args:
             data_dir: Directory containing CSV files.
@@ -105,6 +107,9 @@ class StockDataset(Dataset):
         
         # Additional training filter for 3-class (filter extreme neutrals during training)
         self.train_filter_threshold = train_filter_threshold if mode == 'train' else None
+        
+        # Ticker filter for sector-based training
+        self.tickers_filter = set(tickers_filter) if tickers_filter is not None else None
 
         # Enhanced image generator
         self.img_gen = ImageGenerator(
@@ -183,6 +188,9 @@ class StockDataset(Dataset):
 
         for file, data_dir in all_files:
             ticker = file.replace('.csv', '').replace('.parquet', '')
+            # Skip if ticker filter is set and this ticker is not in the filter
+            if self.tickers_filter is not None and ticker not in self.tickers_filter:
+                continue
             try:
                 file_path = os.path.join(data_dir, file)
                 if file.endswith('.parquet'):
