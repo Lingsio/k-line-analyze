@@ -1,0 +1,17 @@
+OHLC Image Library Summary
+Generated: 2026-02-13T15:19:08.324247
+
+Total images: 7915
+Unique symbols: 10
+
+Symbol distribution:
+  MMM: 908
+  ABT: 908
+  AFL: 908
+  ADBE: 908
+  AMD: 908
+  AOS: 900
+  AES: 871
+  A: 658
+  ACN: 616
+  ABBV: 330

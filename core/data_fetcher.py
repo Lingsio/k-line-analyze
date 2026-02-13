@@ -2,7 +2,7 @@
 Multi-source data fetcher for stock and cryptocurrency data.
 
 Supported markets:
-- US: Yahoo Finance
+- US: TradingView (primary), Yahoo Finance (fallback)
 - TW: Yahoo Finance (with .TW/.TWO suffix)
 - CN: AKShare
 - HK: Yahoo Finance (with .HK suffix)
@@ -16,13 +16,36 @@ from typing import Optional, Dict, Any
 import asyncio
 from functools import lru_cache
 
+# Try to import TradingView fetcher
+try:
+    from .tradingview_fetcher import TradingViewFetcher
+    TV_AVAILABLE = True
+except ImportError:
+    TV_AVAILABLE = False
+
 
 class DataFetcher:
     """Unified data fetcher for multiple markets."""
 
-    def __init__(self):
+    def __init__(self, use_tradingview: bool = True, tv_username: Optional[str] = None, tv_password: Optional[str] = None):
+        """
+        Initialize data fetcher.
+        
+        Args:
+            use_tradingview: Use TradingView as primary source for US stocks
+            tv_username: TradingView username (optional)
+            tv_password: TradingView password (optional)
+        """
         self._cache: Dict[str, tuple] = {}  # (data, timestamp)
         self._cache_ttl = 3600  # 1 hour
+        
+        # Initialize TradingView fetcher if available
+        self._tv_fetcher: Optional[TradingViewFetcher] = None
+        if use_tradingview and TV_AVAILABLE:
+            try:
+                self._tv_fetcher = TradingViewFetcher(tv_username, tv_password)
+            except Exception as e:
+                print(f"Warning: Failed to initialize TradingView fetcher: {e}")
 
     async def _run_in_executor(self, func, *args, **kwargs):
         """Run blocking function in thread pool."""
@@ -60,26 +83,12 @@ class DataFetcher:
                 return data.copy()
 
         # Fetch based on market
-        # Note: The sub-methods (_fetch_yahoo, etc) are currently marked async but contain blocking calls.
-        # We should update them to be sync and run them via _run_in_executor, 
-        # OR update them to wrap their internal blocking calls.
-        # To minimize changes, I will wrap the calls here if possible, but they are defined as async.
-        # Let's check _fetch_china definition. It was async def _fetch_china(...)
-        # But inside it calls blocking code.
-        # "async def" does NOT make code async if it doesn't await. It just returns a coroutine.
-        # If I await it, it runs synchronously.
-        
-        # Correct fix: Change _fetch_china etc to be synchronous, then await _run_in_executor(self._fetch_china, ...)
-        # BUT changing signature breaks interface if used elsewhere? 
-        # Only used internally here?
-        
-        # Let's keep them async def, but inside them, wrap the blocking part? 
-        # No, easier: call them directly. 
-        # Wait, if they are `async def`, I must `await` them.
-        # I should change the implementation of `_fetch_china` to wrap the blocking call.
-        
         if market == "us":
-            df = await self._fetch_yahoo(symbol, start_date, end_date, period)
+            # Try TradingView first, fallback to Yahoo Finance
+            df = await self._fetch_tradingview(symbol, start_date, end_date, period)
+            if df is None:
+                print(f"  Falling back to Yahoo Finance for {symbol}")
+                df = await self._fetch_yahoo(symbol, start_date, end_date, period)
         elif market == "tw":
             df = await self._fetch_taiwan(symbol, start_date, end_date, period)
         elif market == "cn":
@@ -103,10 +112,39 @@ class DataFetcher:
 
         return df
 
+    async def _fetch_tradingview(
+        self, symbol: str, start_date: str, end_date: str, period: str
+    ) -> Optional[pd.DataFrame]:
+        """Fetch data from TradingView (primary source for US stocks)."""
+        if self._tv_fetcher is None:
+            return None
+            
+        try:
+            interval = "1d" if period == "daily" else "1W"
+            
+            # Run synchronous TradingView fetch in executor
+            loop = asyncio.get_event_loop()
+            df = await loop.run_in_executor(
+                None, 
+                lambda: self._tv_fetcher.fetch_history(symbol, start_date, end_date, interval=interval)
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            # Standardize column names to lowercase
+            df.columns = df.columns.str.lower()
+            
+            return df
+
+        except Exception as e:
+            print(f"Error fetching TradingView data for {symbol}: {e}")
+            return None
+
     async def _fetch_yahoo(
         self, symbol: str, start_date: str, end_date: str, period: str
     ) -> Optional[pd.DataFrame]:
-        """Fetch data from Yahoo Finance."""
+        """Fetch data from Yahoo Finance (fallback)."""
         try:
             import yfinance as yf
 

@@ -20,7 +20,7 @@
 | 图像处理 | OpenCV (headless), PIL, matplotlib, mplfinance |
 | 向量搜索 | FAISS-CPU |
 | 数据处理 | NumPy, Pandas, PyArrow, Scikit-learn |
-| 金融数据 | yfinance, akshare |
+| 金融数据 | TradingView (tvdatafeed), yfinance, akshare |
 | 时序分析 | dtw-python, pyts |
 
 ---
@@ -32,6 +32,7 @@ k-line-analyze/
 ├── core/                          # 核心功能模块
 │   ├── config.py                 # 配置管理 (pydantic-settings)
 │   ├── data_fetcher.py           # 股票数据获取 (US/TW/CN/HK/Crypto)
+│   ├── tradingview_fetcher.py    # TradingView 数据源 (美股)
 │   ├── dataset.py                # 数据集定义
 │   ├── preprocessor.py           # 数据预处理
 │   ├── similarity_search.py      # 相似性搜索 (FAISS)
@@ -202,6 +203,95 @@ date,open,high,low,close,volume
 | 图像尺寸 | 128×128 | 256×256 |
 | 每根K线宽度 | ~2px | ~25px |
 | 预测类别 | 多分类 | 二分类 (涨/跌) |
+
+---
+
+## TradingView 数据源
+
+美股数据现在主要使用 **TradingView** 作为数据源，提供更好的数据质量和更长的历史数据。
+
+### 安装依赖
+
+```bash
+pip install tradingview-datafeed websocket-client
+```
+
+### 快速开始
+
+#### 1. 下载所有美股数据
+
+```bash
+# 下载默认股票列表 (~150只)
+python scripts/download_all_us_stocks.py
+
+# 下载特定股票
+python scripts/download_all_us_stocks.py --symbols AAPL MSFT GOOGL
+
+# 强制重新下载
+python scripts/download_all_us_stocks.py --force
+
+# 查看数据库信息
+python scripts/download_all_us_stocks.py --info
+```
+
+#### 2. 使用数据库管理器
+
+```python
+from core.tradingview_fetcher import USStockDatabase
+
+# 初始化数据库
+db = USStockDatabase(data_dir="data/raw/us")
+
+# 更新单只股票
+db.update_stock("AAPL")
+
+# 批量更新
+db.update_all(["AAPL", "MSFT", "GOOGL"])
+
+# 加载本地数据
+df = db.load_stock("AAPL")
+
+# 查看数据库摘要
+summary = db.get_database_summary()
+```
+
+#### 3. 直接获取数据
+
+```python
+from core.tradingview_fetcher import TradingViewFetcher
+
+fetcher = TradingViewFetcher()
+
+# 获取最新数据
+df = fetcher.fetch_ohlcv("AAPL", n_bars=1000)
+
+# 获取历史数据
+df = fetcher.fetch_history("AAPL", "2020-01-01", "2023-12-31")
+
+# 不同时间周期
+df = fetcher.fetch_ohlcv("AAPL", interval="1W", n_bars=100)  # 周线
+```
+
+### DataFetcher 集成
+
+```python
+from core.data_fetcher import DataFetcher
+
+# 使用 TradingView 作为美股数据源
+fetcher = DataFetcher(use_tradingview=True)
+
+# 自动优先使用 TradingView，失败时回退到 Yahoo Finance
+df = await fetcher.fetch_ohlcv("AAPL", market="us")
+```
+
+### 支持的交易所映射
+
+| Symbol | Exchange |
+|--------|----------|
+| AAPL, MSFT, GOOGL | NASDAQ |
+| JPM, BAC, GS | NYSE |
+
+系统内置了 150+ 只美股的交易所映射，自动识别正确的交易所。
 
 ---
 
@@ -403,16 +493,32 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 ## 内置股票列表
 
-### 美股 (26只)
+### 美股 (标普500全部503只)
 
-```
-AAPL  MSFT  GOOGL  AMZN  NVDA  TSLA  META  AMD
-NFLX  INTC  JPM    BAC   V     MA    JNJ   PFE
-UNH   PG    KO     WMT   XOM   CVX   BA    DIS
-CRM   CSCO
+使用TradingView数据源，覆盖全部标普500指数成分股：
+
+| 交易所 | 股票数量 | 代表性股票 |
+|--------|----------|------------|
+| NASDAQ | 84 | AAPL, MSFT, GOOGL, NVDA, META, AMZN, AMD, NFLX... |
+| NYSE | 419 | JPM, XOM, JNJ, WMT, V, PG, UNH, HD... |
+
+**完整列表**：运行以下命令查看
+```bash
+python scripts/download_all_us_stocks.py --info
 ```
 
-覆盖科技、金融、医疗、消费、能源五大板块。
+数据覆盖11个GICS板块：
+- **Information Technology** (科技股): 约70只
+- **Health Care** (医疗保健): 约65只
+- **Financials** (金融): 约65只
+- **Consumer Discretionary** (非必需消费): 约55只
+- **Communication Services** (通信服务): 约25只
+- **Industrials** (工业): 约70只
+- **Consumer Staples** (必需消费): 约35只
+- **Energy** (能源): 约25只
+- **Utilities** (公用事业): 约30只
+- **Real Estate** (房地产): 约30只
+- **Materials** (原材料): 约25只
 
 ---
 
