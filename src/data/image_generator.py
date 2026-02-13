@@ -115,7 +115,8 @@ class ImageGenerator:
 
     def fast_cv2_draw(self, open_p, high_p, low_p, close_p, volume, size=None, grayscale=False):
         """
-        Enhanced K-line image generation with volume bars and better normalization.
+        Enhanced K-line image generation with volume bars.
+        Vectorized: coordinate calculations done via NumPy in one pass.
 
         Args:
             open_p, high_p, low_p, close_p: OHLC price arrays
@@ -131,91 +132,90 @@ class ImageGenerator:
 
         # Reserve space for volume if enabled
         if self.include_volume:
-            price_height = int(H * 0.75)  # 75% for price chart
-            vol_height = H - price_height - 2  # Rest for volume (with gap)
+            price_height = int(H * 0.75)
+            vol_height = H - price_height - 2
             vol_start_y = price_height + 2
         else:
             price_height = H
             vol_height = 0
             vol_start_y = H
 
-        # Apply advanced normalization
+        # Vectorized normalization
         norm_open, norm_high, norm_low, norm_close = self._normalize_prices(
             open_p, high_p, low_p, close_p
         )
 
-        def y_coord(normalized_price):
-            # Map normalized [0,1] to pixel coordinates with padding
-            padding = price_height * 0.05
-            val = int(price_height - padding - normalized_price * (price_height - 2 * padding))
-            return max(0, min(price_height - 1, val))
+        # Vectorized y_coord for all arrays
+        padding = price_height * 0.05
+        def vec_y_coord(normalized_prices):
+            vals = (price_height - padding - normalized_prices * (price_height - 2 * padding)).astype(np.int32)
+            return np.clip(vals, 0, price_height - 1)
 
         num_candles = len(open_p)
-        candle_w = max(1, (W - 4) // num_candles)  # Leave margin
-        gap = max(1, candle_w // 4)  # Gap between candles
+        candle_w = max(1, (W - 4) // num_candles)
+        gap = max(1, candle_w // 4)
         actual_candle_w = max(1, candle_w - gap)
 
+        # Vectorized coordinate computation
+        x_centers = (2 + np.arange(num_candles) * candle_w + candle_w / 2).astype(np.int32)
+        y_h = vec_y_coord(norm_high)
+        y_l = vec_y_coord(norm_low)
+        y_o = vec_y_coord(norm_open)
+        y_c = vec_y_coord(norm_close)
+
+        is_up = close_p >= open_p
+
         for i in range(num_candles):
-            x_center = int(2 + i * candle_w + candle_w / 2)
-
-            y_h = y_coord(norm_high[i])
-            y_l = y_coord(norm_low[i])
-            y_o = y_coord(norm_open[i])
-            y_c = y_coord(norm_close[i])
-
-            is_up = close_p[i] >= open_p[i]
+            xc = int(x_centers[i])
+            if xc >= W:
+                break
 
             if grayscale:
-                # Enhanced grayscale: brightness encodes direction + magnitude
                 magnitude = abs(close_p[i] - open_p[i]) / (high_p[i] - low_p[i] + 1e-8)
-                base_intensity = 200 if is_up else 80
-                intensity = int(base_intensity + magnitude * 55)
-                color = (min(255, intensity),)
+                base_intensity = 200 if is_up[i] else 80
+                intensity = min(255, int(base_intensity + magnitude * 55))
+                color = (intensity,)
             else:
-                # BGR: Red (Up), Green (Down)
-                color = (0, 0, 255) if is_up else (0, 255, 0)
+                color = (0, 0, 255) if is_up[i] else (0, 255, 0)
 
-            # Draw Wick (shadow line)
-            cv2.line(img, (x_center, y_h), (x_center, y_l), color, 1)
+            # Wick
+            cv2.line(img, (xc, int(y_h[i])), (xc, int(y_l[i])), color, 1)
 
-            # Draw Body
-            top = min(y_o, y_c)
-            bottom = max(y_o, y_c)
-
-            x_left = max(0, x_center - actual_candle_w // 2)
-            x_right = min(W - 1, x_center + actual_candle_w // 2)
-
+            # Body
+            top = min(int(y_o[i]), int(y_c[i]))
+            bottom = max(int(y_o[i]), int(y_c[i]))
+            x_left = max(0, xc - actual_candle_w // 2)
+            x_right = min(W - 1, xc + actual_candle_w // 2)
             if x_right <= x_left:
                 x_right = x_left + 1
 
             if top == bottom:
-                # Doji
                 cv2.line(img, (x_left, top), (x_right, top), color, 1)
             else:
                 cv2.rectangle(img, (x_left, top), (x_right, bottom), color, -1)
 
-        # Draw Volume bars
+        # Vectorized volume bars
         if self.include_volume and vol_height > 2:
             max_vol = np.max(volume) + 1e-8
             norm_vol = volume / max_vol
+            bar_heights = (norm_vol * (vol_height - 1)).astype(np.int32)
+            vol_bottom = vol_start_y + vol_height - 1
 
             for i in range(num_candles):
-                x_center = int(2 + i * candle_w + candle_w / 2)
-                x_left = max(0, x_center - actual_candle_w // 2)
-                x_right = min(W - 1, x_center + actual_candle_w // 2)
+                xc = int(x_centers[i])
+                if xc >= W or bar_heights[i] <= 0:
+                    continue
+                x_left = max(0, xc - actual_candle_w // 2)
+                x_right = min(W - 1, xc + actual_candle_w // 2)
+                bar_top = vol_start_y + (vol_height - int(bar_heights[i]))
 
-                bar_height = int(norm_vol[i] * (vol_height - 1))
-                bar_top = vol_start_y + (vol_height - bar_height)
-                bar_bottom = vol_start_y + vol_height - 1
-
-                is_up = close_p[i] >= open_p[i]
                 if grayscale:
-                    vol_color = (180,) if is_up else (60,)
+                    vol_color = (180,) if is_up[i] else (60,)
                 else:
-                    vol_color = (0, 0, 180) if is_up else (0, 180, 0)  # Dimmer colors
+                    vol_color = (0, 0, 180) if is_up[i] else (0, 180, 0)
 
-                if bar_height > 0 and x_right > x_left:
-                    cv2.rectangle(img, (x_left, bar_top), (x_right, bar_bottom), vol_color, -1)
+                if x_right > x_left:
+                    cv2.rectangle(img, (x_left, bar_top), (x_right, vol_bottom), vol_color, -1)
 
         return img
 
@@ -480,9 +480,7 @@ class ImageGenerator:
                        size=None, grayscale=False, include_volume=True):
         """
         Draw OHLC bar chart (Xiu et al. style) - each day is 3 pixels wide.
-        
-        This format is more compact and was shown to be effective in:
-        "(Re-)Imag(in)ing Price Trends" by Jiang, Kelly, Xiu (2021)
+        Vectorized: all coordinate calculations done via NumPy in one pass.
         
         Args:
             open_p, high_p, low_p, close_p: OHLC price arrays
@@ -498,7 +496,7 @@ class ImageGenerator:
             size = self.img_size
         H, W = size
         
-        # Create black background (sparse representation as in Xiu et al.)
+        # Create black background
         if grayscale:
             img = np.zeros((H, W), dtype=np.uint8)
         else:
@@ -506,7 +504,7 @@ class ImageGenerator:
         
         # Reserve space for volume
         if include_volume and len(volume) > 0:
-            price_height = int(H * 0.8)  # 80% for price
+            price_height = int(H * 0.8)
             vol_height = H - price_height - 2
             vol_start_y = price_height + 2
         else:
@@ -514,88 +512,84 @@ class ImageGenerator:
             vol_height = 0
             vol_start_y = H
         
-        # Normalization: Scale so max-min price range spans the height
-        # This is the key insight from Xiu et al. - all stocks on same scale
+        # Vectorized normalization
         all_prices = np.concatenate([open_p, high_p, low_p, close_p])
         min_price = np.min(all_prices)
         max_price = np.max(all_prices)
         price_range = max_price - min_price
-        
         if price_range < 1e-8:
             price_range = 1e-8
         
-        # Padding to avoid edge effects
         padding_y = int(price_height * 0.05)
         effective_height = price_height - 2 * padding_y
         
-        def price_to_y(price):
-            """Map price to y-coordinate (inverted, so high price at top)"""
-            normalized = (price - min_price) / price_range
-            y = int(padding_y + (1 - normalized) * effective_height)
-            return max(padding_y, min(price_height - padding_y - 1, y))
+        # Vectorized price_to_y for all arrays at once
+        def vec_price_to_y(prices):
+            normalized = (prices - min_price) / price_range
+            y = (padding_y + (1 - normalized) * effective_height).astype(np.int32)
+            return np.clip(y, padding_y, price_height - padding_y - 1)
         
-        # Each candle occupies 3 pixels width (as in Xiu et al.)
         num_bars = len(open_p)
         bar_width = 3
         total_width = num_bars * bar_width
-        
-        # Center the chart if smaller than image width
         x_offset = max(0, (W - total_width) // 2)
         
-        for i in range(num_bars):
-            x_base = x_offset + i * bar_width
-            if x_base + 2 >= W:
-                break
-            
-            y_open = price_to_y(open_p[i])
-            y_high = price_to_y(high_p[i])
-            y_low = price_to_y(low_p[i])
-            y_close = price_to_y(close_p[i])
-            
-            # Color: White for visible elements on black background (Xiu et al. style)
-            # Or traditional Red/Green for up/down
-            is_up = close_p[i] >= open_p[i]
-            
-            if grayscale:
-                color = 255  # White
-            else:
-                # Use white for all as in Xiu et al., or red/green
-                # White on black is more sparse (better for CNN)
-                color = (255, 255, 255)  # White
-                # Alternative: traditional colors
-                # color = (0, 0, 255) if is_up else (0, 255, 0)  # Red/Green
-            
-            # Draw high-low line (vertical bar) - center pixel (x_base + 1)
-            cv2.line(img, (x_base + 1, y_high), (x_base + 1, y_low), color, 1)
-            
-            # Draw open tick (left pixel)
-            cv2.line(img, (x_base, y_open), (x_base + 1, y_open), color, 1)
-            
-            # Draw close tick (right pixel)
-            cv2.line(img, (x_base + 1, y_close), (x_base + 2, y_close), color, 1)
+        # Vectorized coordinate computation — single NumPy pass
+        x_bases = x_offset + np.arange(num_bars) * bar_width
+        # Clip to valid bars that fit in the image
+        valid_mask = (x_bases + 2) < W
+        if not np.any(valid_mask):
+            return img
+        x_bases = x_bases[valid_mask]
+        n_valid = len(x_bases)
         
-        # Draw volume bars at bottom
+        y_open = vec_price_to_y(open_p[:n_valid])
+        y_high = vec_price_to_y(high_p[:n_valid])
+        y_low = vec_price_to_y(low_p[:n_valid])
+        y_close = vec_price_to_y(close_p[:n_valid])
+        
+        # Ensure y_high <= y_low (high price = small y, low price = large y)
+        y_top = np.minimum(y_high, y_low)
+        y_bot = np.maximum(y_high, y_low)
+        
+        if grayscale:
+            # Pure numpy drawing — no cv2 calls at all
+            for i in range(n_valid):
+                xb = x_bases[i]
+                # High-low vertical line (center pixel)
+                img[y_top[i]:y_bot[i]+1, xb + 1] = 255
+                # Open tick (left pixel)
+                img[y_open[i], xb:xb+2] = 255
+                # Close tick (right pixel)
+                img[y_close[i], xb+1:xb+3] = 255
+        else:
+            # RGB mode: minimal cv2 calls with pre-computed coords
+            color = (255, 255, 255)
+            for i in range(n_valid):
+                xb = int(x_bases[i])
+                cv2.line(img, (xb + 1, int(y_high[i])), (xb + 1, int(y_low[i])), color, 1)
+                cv2.line(img, (xb, int(y_open[i])), (xb + 1, int(y_open[i])), color, 1)
+                cv2.line(img, (xb + 1, int(y_close[i])), (xb + 2, int(y_close[i])), color, 1)
+        
+        # Vectorized volume bars
         if include_volume and vol_height > 2 and len(volume) > 0:
             max_vol = np.max(volume) + 1e-8
+            vol_norm = volume[:n_valid] / max_vol
+            bar_heights = (vol_norm * (vol_height - 1)).astype(np.int32)
+            vol_tops = vol_start_y + (vol_height - bar_heights)
+            vol_bottom = vol_start_y + vol_height - 1
             
-            for i in range(num_bars):
-                x_base = x_offset + i * bar_width
-                if x_base + 2 >= W:
-                    break
-                
-                vol_normalized = volume[i] / max_vol
-                bar_h = int(vol_normalized * (vol_height - 1))
-                
-                if bar_h > 0:
-                    y_top = vol_start_y + (vol_height - bar_h)
-                    y_bottom = vol_start_y + vol_height - 1
-                    
-                    if grayscale:
-                        vol_color = 200
-                    else:
-                        vol_color = (200, 200, 200)  # Light gray
-                    
-                    cv2.rectangle(img, (x_base, y_top), (x_base + 2, y_bottom), vol_color, -1)
+            if grayscale:
+                for i in range(n_valid):
+                    if bar_heights[i] > 0:
+                        xb = x_bases[i]
+                        img[vol_tops[i]:vol_bottom+1, xb:xb+3] = 200
+            else:
+                vol_color = (200, 200, 200)
+                for i in range(n_valid):
+                    if bar_heights[i] > 0:
+                        xb = int(x_bases[i])
+                        cv2.rectangle(img, (xb, int(vol_tops[i])), (xb + 2, vol_bottom), vol_color, -1)
         
         return img
 
@@ -614,13 +608,14 @@ class ImageGenerator:
                           window_size=20):
         """
         Draw sparse grayscale OHLC bar chart.
+        Vectorized: all coordinate calculations done via NumPy in one pass.
+        Pure numpy drawing — no cv2 calls at all.
 
         Key features:
         - Fixed image sizes: {5: (32,15), 20: (64,60), 60: (96,180)}
         - Bar width: 3px, NO centering — bars fill from x=0
         - Volume at TOP (1/5 of height), price below with 1px gap
         - Grayscale uint8: black bg (0), white bars (255), gray volume (200)
-        - Drawing: center pixel = high-low line, left tick = open, right tick = close
 
         Args:
             open_p, high_p, low_p, close_p: OHLC price arrays
@@ -638,33 +633,35 @@ class ImageGenerator:
 
         # Volume section: top 1/5 of image
         vol_height = H // 5
-        # 1px gap
         price_start_y = vol_height + 1
         price_height = H - price_start_y
 
         if price_height < 3:
             return img
 
-        # --- Draw volume bars at TOP ---
+        # Vectorized x_bases and bounds check
+        x_bases = np.arange(num_bars) * 3
+        valid_mask = (x_bases + 2) < W
+        if not np.any(valid_mask):
+            return img
+        x_bases = x_bases[valid_mask]
+        n_valid = len(x_bases)
+
+        # --- Vectorized volume bars at TOP ---
         if len(volume) > 0:
             max_vol = np.max(volume)
             if max_vol < 1e-8:
                 max_vol = 1.0
+            vol_norm = volume[:n_valid] / max_vol
+            bar_heights = np.maximum(0, (vol_norm * (vol_height - 1)).astype(np.int32))
+            vol_tops = vol_height - bar_heights
 
-            for i in range(num_bars):
-                x_base = i * 3
-                if x_base + 2 >= W:
-                    break
+            for i in range(n_valid):
+                if bar_heights[i] > 0:
+                    xb = x_bases[i]
+                    img[vol_tops[i]:vol_height, xb:xb + 3] = 200
 
-                vol_norm = volume[i] / max_vol
-                bar_h = max(0, int(vol_norm * (vol_height - 1)))
-                if bar_h > 0:
-                    y_top = vol_height - bar_h
-                    y_bottom = vol_height - 1
-                    # 3px wide gray volume bar
-                    img[y_top:y_bottom + 1, x_base:x_base + 3] = 200
-
-        # --- Draw price OHLC bars below volume ---
+        # --- Vectorized price OHLC bars below volume ---
         all_prices = np.concatenate([open_p, high_p, low_p, close_p])
         min_price = np.min(all_prices)
         max_price = np.max(all_prices)
@@ -672,38 +669,32 @@ class ImageGenerator:
         if price_range < 1e-8:
             price_range = 1e-8
 
-        # Small padding (1px) at top and bottom of price area
         pad = 1
         effective_height = price_height - 2 * pad
 
-        def price_to_y(price):
-            normalized = (price - min_price) / price_range
-            # High price at top (low y), low price at bottom (high y)
-            y = price_start_y + pad + int((1 - normalized) * effective_height)
-            return max(price_start_y + pad, min(H - pad - 1, y))
+        # Vectorized price_to_y
+        def vec_price_to_y(prices):
+            normalized = (prices - min_price) / price_range
+            y = (price_start_y + pad + (1 - normalized) * effective_height).astype(np.int32)
+            return np.clip(y, price_start_y + pad, H - pad - 1)
 
-        for i in range(num_bars):
-            x_base = i * 3
-            if x_base + 2 >= W:
-                break
+        y_high = vec_price_to_y(high_p[:n_valid])
+        y_low = vec_price_to_y(low_p[:n_valid])
+        y_open = vec_price_to_y(open_p[:n_valid])
+        y_close = vec_price_to_y(close_p[:n_valid])
 
-            y_high = price_to_y(high_p[i])
-            y_low = price_to_y(low_p[i])
-            y_open = price_to_y(open_p[i])
-            y_close = price_to_y(close_p[i])
+        y_top = np.minimum(y_high, y_low)
+        y_bot = np.maximum(y_high, y_low)
 
-            # Center pixel (x_base + 1): high-low vertical line
-            y_top = min(y_high, y_low)
-            y_bot = max(y_high, y_low)
-            img[y_top:y_bot + 1, x_base + 1] = 255
-
-            # Left tick (x_base): open price
-            img[y_open, x_base] = 255
-            img[y_open, x_base + 1] = 255
-
-            # Right tick (x_base + 2): close price
-            img[y_close, x_base + 1] = 255
-            img[y_close, x_base + 2] = 255
+        # Pure numpy drawing
+        for i in range(n_valid):
+            xb = x_bases[i]
+            # High-low vertical line (center pixel)
+            img[y_top[i]:y_bot[i] + 1, xb + 1] = 255
+            # Open tick (left 2 pixels)
+            img[y_open[i], xb:xb + 2] = 255
+            # Close tick (right 2 pixels)
+            img[y_close[i], xb + 1:xb + 3] = 255
 
         return img
 

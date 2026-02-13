@@ -165,7 +165,8 @@ class HighResStockDataset(Dataset):
         return samples
     
     def _generate_highres_image(self, window_df):
-        """Generate high-resolution OHLC image with anti-aliasing."""
+        """Generate high-resolution OHLC image with anti-aliasing.
+        Vectorized: all coordinate calculations done via NumPy in one pass."""
         h, w = self.img_size
         bar_w = self.bar_width
         
@@ -194,16 +195,16 @@ class HighResStockDataset(Dataset):
         
         # Calculate dimensions
         if volumes is not None and self.use_volume:
-            vol_ratio = 0.15  # Volume takes 15% of height
+            vol_ratio = 0.15
             vol_height = int(h * vol_ratio)
-            gap = max(2, h // 50)  # Gap between volume and price
+            gap = max(2, h // 50)
             price_height = h - vol_height - gap
         else:
             vol_height = 0
             gap = 0
             price_height = h
         
-        # Create high-res image (larger then resize for anti-aliasing)
+        # Supersampling for anti-aliasing
         supersample = 2 if self.resolution in ['ultra', 'h20_max'] else 1
         hh, ww = h * supersample, w * supersample
         bar_ws = bar_w * supersample
@@ -213,63 +214,58 @@ class HighResStockDataset(Dataset):
         
         img = np.zeros((hh, ww), dtype=np.float32)
         
-        # Calculate price scale
-        min_p = min(lows.min(), opens.min(), closes.min(), lows.min())
-        max_p = max(highs.max(), opens.max(), closes.max(), highs.max())
+        # Vectorized price scale
+        min_p = min(lows.min(), opens.min(), closes.min())
+        max_p = max(highs.max(), opens.max(), closes.max())
         if max_p == min_p:
             max_p = min_p + 0.01
         price_range = max_p - min_p
         
-        def price_to_y(price):
-            """Convert price to y-coordinate."""
-            normalized = (price - min_p) / price_range
-            y = int(normalized * (price_h - 1))
-            return price_h - 1 - y + vol_h + gap_s if vol_h > 0 else price_h - 1 - y
+        # Vectorized price_to_y
+        y_offset = (vol_h + gap_s) if vol_h > 0 else 0
+        def vec_price_to_y(prices):
+            normalized = (prices - min_p) / price_range
+            y = (normalized * (price_h - 1)).astype(np.int32)
+            return (price_h - 1 - y + y_offset).astype(np.int32)
         
         n_bars = len(opens)
         
-        # Draw OHLC bars with anti-aliasing
-        for i in range(n_bars):
-            x_base = i * bar_ws
-            center_x = x_base + bar_ws // 2
-            
-            o = opens[i]
-            h_val = highs[i]
-            l_val = lows[i]
-            c = closes[i]
-            
-            y_o = price_to_y(o)
-            y_h = price_to_y(h_val)
-            y_l = price_to_y(l_val)
-            y_c = price_to_y(c)
-            
-            # Draw high-low line (thicker for high-res)
-            thickness = max(1, supersample)
-            cv2.line(img, (center_x, y_h), (center_x, y_l), 1.0, thickness)
-            
-            # Draw open tick (left)
-            tick_len = max(2, bar_ws // 3)
-            cv2.line(img, (x_base, y_o), (x_base + tick_len, y_o), 1.0, thickness)
-            
-            # Draw close tick (right)
-            cv2.line(img, (center_x + tick_len, y_c), (center_x + tick_len * 2, y_c), 1.0, thickness)
+        # Pre-compute all coordinates in one pass
+        x_bases = (np.arange(n_bars) * bar_ws).astype(np.int32)
+        center_xs = (x_bases + bar_ws // 2).astype(np.int32)
+        y_o = vec_price_to_y(opens)
+        y_h = vec_price_to_y(highs)
+        y_l = vec_price_to_y(lows)
+        y_c = vec_price_to_y(closes)
         
-        # Draw volume
+        thickness = max(1, supersample)
+        tick_len = max(2, bar_ws // 3)
+        
+        # Draw OHLC bars with pre-computed coords
+        for i in range(n_bars):
+            xb = int(x_bases[i])
+            cx = int(center_xs[i])
+            # High-low line
+            cv2.line(img, (cx, int(y_h[i])), (cx, int(y_l[i])), 1.0, thickness)
+            # Open tick (left)
+            cv2.line(img, (xb, int(y_o[i])), (xb + tick_len, int(y_o[i])), 1.0, thickness)
+            # Close tick (right)
+            cv2.line(img, (cx + tick_len, int(y_c[i])), (cx + tick_len * 2, int(y_c[i])), 1.0, thickness)
+        
+        # Vectorized volume drawing
         if vol_h > 0 and volumes is not None:
             vol_max = np.nanmax(volumes)
             if vol_max > 0:
+                vol_norm = volumes / vol_max
+                vol_hs = (vol_norm * vol_h).astype(np.int32)
+                vol_tops = vol_h - vol_hs
+                intensities = 0.3 + 0.5 * vol_norm
+                
                 for i in range(n_bars):
-                    x_base = i * bar_ws
-                    vol = volumes[i]
-                    if np.isnan(vol):
+                    if np.isnan(volumes[i]) or vol_hs[i] <= 0:
                         continue
-                    vol_norm = vol / vol_max
-                    vol_hs = int(vol_norm * vol_h)
-                    y_top = vol_h - vol_hs
-                    y_bottom = vol_h
-                    # Gradient volume bars
-                    intensity = 0.3 + 0.5 * vol_norm
-                    cv2.rectangle(img, (x_base, y_top), (x_base + bar_ws - 1, y_bottom), intensity, -1)
+                    xb = int(x_bases[i])
+                    cv2.rectangle(img, (xb, int(vol_tops[i])), (xb + bar_ws - 1, vol_h), float(intensities[i]), -1)
         
         # Downsample for anti-aliasing if supersampled
         if supersample > 1:

@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import cv2
+from functools import lru_cache
 from .image_generator import ImageGenerator
 from .quantile_filtering import QuantileThresholdCalculator
 
@@ -121,6 +122,10 @@ class StockDataset(Dataset):
         self.samples = []
         self.data_cache = {}
         self.volatility_cache = {}  # Store per-stock volatility for dynamic thresholds
+
+        # LRU image cache for val/test modes (images are deterministic without augmentation)
+        self._image_cache = {} if mode in ('val', 'test') else None
+        self._image_cache_maxsize = 8192  # Max cached images to limit memory
 
         self._load_data(split_ratio)
 
@@ -353,23 +358,34 @@ class StockDataset(Dataset):
 
         return norm_prices, norm_vol
 
-    def _get_image_for_sample(self, sample, apply_basic_aug=False):
-        """
-        Generate image for a single sample.
-        Used internally for both normal generation and Mixup/CutMix.
-        
-        V2: Supports OHLC bars, GAF encoding, and hybrid representations.
-        """
+    def _extract_ohlcv(self, sample):
+        """Extract OHLCV arrays for a sample. Single extraction point to avoid duplication."""
         df = self.data_cache[sample['ticker']]
         start = sample['start_idx']
         end = start + self.window_size
-        window_df = df.iloc[start:end].copy()
+        # Use .values directly on DataFrame slice — avoids .copy() overhead
+        window = df.iloc[start:end]
+        opens = window['Open'].values.astype(np.float64)
+        highs = window['High'].values.astype(np.float64)
+        lows = window['Low'].values.astype(np.float64)
+        closes = window['Close'].values.astype(np.float64)
+        vols = window['Volume'].values.astype(np.float64)
+        return opens, highs, lows, closes, vols
 
-        opens = window_df['Open'].values.astype(np.float64)
-        highs = window_df['High'].values.astype(np.float64)
-        lows = window_df['Low'].values.astype(np.float64)
-        closes = window_df['Close'].values.astype(np.float64)
-        vols = window_df['Volume'].values.astype(np.float64)
+    def _get_image_for_sample(self, sample, apply_basic_aug=False, ohlcv=None):
+        """
+        Generate image for a single sample.
+        
+        Args:
+            sample: Sample dict with ticker, start_idx, etc.
+            apply_basic_aug: Whether to apply augmentation (train only).
+            ohlcv: Pre-extracted (opens, highs, lows, closes, vols) tuple.
+                   If None, extracts from data_cache (for Mixup/CutMix calls).
+        """
+        if ohlcv is not None:
+            opens, highs, lows, closes, vols = ohlcv
+        else:
+            opens, highs, lows, closes, vols = self._extract_ohlcv(sample)
 
         # Decide if we apply basic augmentation
         augment_type = None
@@ -386,7 +402,6 @@ class StockDataset(Dataset):
             return img_np[:, :, np.newaxis]
 
         if self.chart_type == 'gaf':
-            # Pure GAF representation (Chen & Tsai 2020)
             img_np = self.img_gen.create_gaf_ohlc(
                 opens, highs, lows, closes, vols,
                 size=self.img_size,
@@ -396,9 +411,7 @@ class StockDataset(Dataset):
             return img_np
         
         elif self.chart_type == 'ohlc':
-            # OHLC bar chart (Xiu et al. 2021)
             if augment_type:
-                # For OHLC, apply augmentation to data first
                 opens, highs, lows, closes, vols = self._apply_data_augmentation(
                     opens, highs, lows, closes, vols, augment_type
                 )
@@ -410,13 +423,11 @@ class StockDataset(Dataset):
                 include_volume=True
             )
             
-            # Apply CLAHE if requested (convert to 3ch first if needed)
             if self.use_clahe and not self.grayscale:
                 if len(img_np.shape) == 2:
                     img_np = cv2.cvtColor(img_np, cv2.COLOR_GRAY2RGB)
                 img_np = self.img_gen.apply_clahe(img_np)
             
-            # Add GAF as additional channel if requested
             if self.use_gaf and not self.grayscale:
                 gaf = self.img_gen.create_gaf_ohlc(
                     opens, highs, lows, closes, vols,
@@ -424,13 +435,11 @@ class StockDataset(Dataset):
                     method=self.gaf_method,
                     combine_channels=False
                 )
-                # Blend OHLC and GAF
                 img_np = (0.7 * img_np.astype(float) + 0.3 * gaf.astype(float)).astype(np.uint8)
             
             return img_np
         
         elif self.chart_type == 'hybrid':
-            # Hybrid: OHLC bars with GAF features
             img_np = self.img_gen.draw_hybrid(
                 opens, highs, lows, closes, vols,
                 size=self.img_size,
@@ -439,7 +448,6 @@ class StockDataset(Dataset):
             return img_np
         
         else:
-            # Original candlestick chart
             if augment_type:
                 img_np = self.img_gen.draw_with_augmentation(
                     opens, highs, lows, closes, vols,
@@ -508,19 +516,9 @@ class StockDataset(Dataset):
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
-        df = self.data_cache[sample['ticker']]
 
-        # Slicing
-        start = sample['start_idx']
-        end = start + self.window_size
-        window_df = df.iloc[start:end].copy()
-
-        # Extract raw arrays
-        opens = window_df['Open'].values.astype(np.float64)
-        highs = window_df['High'].values.astype(np.float64)
-        lows = window_df['Low'].values.astype(np.float64)
-        closes = window_df['Close'].values.astype(np.float64)
-        vols = window_df['Volume'].values.astype(np.float64)
+        # Single extraction point — avoids redundant DataFrame slicing
+        opens, highs, lows, closes, vols = self._extract_ohlcv(sample)
 
         # --- 1D Features (Sequence) ---
         norm_prices, norm_vol = self._normalize_sequence(closes, vols)
@@ -528,40 +526,49 @@ class StockDataset(Dataset):
         seq_tensor = torch.tensor(seq_data, dtype=torch.float32)
 
         # --- 2D Features (Image) ---
-        apply_basic_aug = self.mode == 'train'
-        img_np = self._get_image_for_sample(sample, apply_basic_aug=apply_basic_aug)
+        # For val/test: use LRU cache (images are deterministic)
+        if self._image_cache is not None:
+            cache_key = (sample['ticker'], sample['start_idx'])
+            img_np = self._image_cache.get(cache_key)
+            if img_np is None:
+                img_np = self._get_image_for_sample(
+                    sample, apply_basic_aug=False,
+                    ohlcv=(opens, highs, lows, closes, vols)
+                )
+                if len(self._image_cache) < self._image_cache_maxsize:
+                    self._image_cache[cache_key] = img_np
+        else:
+            apply_basic_aug = self.mode == 'train'
+            img_np = self._get_image_for_sample(
+                sample, apply_basic_aug=apply_basic_aug,
+                ohlcv=(opens, highs, lows, closes, vols)
+            )
+
         label = sample['label']
 
         # --- Mixup/CutMix Augmentation (train only) ---
         if self.mode == 'train':
             rand_val = np.random.random()
             if rand_val < self.mixup_prob:
-                # Mixup: blend with another random sample
                 mix_idx = np.random.randint(len(self.samples))
                 mix_sample = self.samples[mix_idx]
                 img_np2 = self._get_image_for_sample(mix_sample, apply_basic_aug=False)
                 img_np, lam = ImageGenerator.mixup(img_np, img_np2, alpha=self.mixup_alpha)
-                # Soft labels not directly supported in CrossEntropy, return mixed label info
-                # For now, we pick the dominant label
                 label = sample['label'] if lam > 0.5 else mix_sample['label']
 
             elif rand_val < self.mixup_prob + self.cutmix_prob:
-                # CutMix: cut and paste region from another sample
                 mix_idx = np.random.randint(len(self.samples))
                 mix_sample = self.samples[mix_idx]
                 img_np2 = self._get_image_for_sample(mix_sample, apply_basic_aug=False)
                 img_np, bbox, lam = ImageGenerator.cutmix(img_np, img_np2, alpha=self.cutmix_alpha)
-                # Pick dominant label based on area ratio
                 label = sample['label'] if lam > 0.5 else mix_sample['label']
 
         # HWC -> CHW, Normalize 0-1
         if img_np.ndim == 2:
-            # Grayscale (H, W) → (1, H, W)
             img_tensor = torch.tensor(img_np, dtype=torch.float32).unsqueeze(0) / 255.0
         else:
             img_tensor = torch.tensor(img_np, dtype=torch.float32).permute(2, 0, 1) / 255.0
 
-        # --- Label ---
         label_tensor = torch.tensor(label, dtype=torch.long)
 
         return img_tensor, seq_tensor, label_tensor
